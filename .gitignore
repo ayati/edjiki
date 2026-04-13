@@ -1,0 +1,12 @@
+# OAuth Client ID (本物はコミットしない)
+config.js
+
+# 無関係な既存ファイル
+old_chromeex_sample_sjismemo.zip
+
+# エディタ/OS
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/

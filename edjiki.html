@@ -1,0 +1,826 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>edjiki</title>
+<style>
+:root {
+  --bg: #1e1e1e;
+  --fg: #e4e4e4;
+  --muted: #888;
+  --accent: #4a9eff;
+  --border: #333;
+  --card: #252525;
+  --private: #c97;
+  --danger: #e55;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #fafafa;
+    --fg: #222;
+    --muted: #666;
+    --accent: #06c;
+    --border: #ddd;
+    --card: #fff;
+    --private: #a60;
+    --danger: #c33;
+  }
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: ui-monospace, 'Cascadia Code', Consolas, 'Noto Sans Mono CJK JP', 'Noto Sans Mono', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+}
+body {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+header h1 {
+  font-size: 16px;
+  margin: 0;
+  flex: 0 0 auto;
+}
+header .spacer { flex: 1; }
+button {
+  background: var(--card);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  min-height: 32px;
+}
+button:hover { border-color: var(--accent); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+.search-bar {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  position: sticky;
+  top: 49px;
+  background: var(--bg);
+  z-index: 9;
+}
+.search-bar input {
+  flex: 1;
+  background: var(--card);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  min-height: 32px;
+}
+main {
+  flex: 1;
+  padding: 12px;
+  padding-bottom: 100px;
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+}
+.entry {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.entry.private {
+  border-left: 3px solid var(--private);
+}
+.entry-head {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.entry-time {
+  font-family: inherit;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid transparent;
+  padding: 2px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.entry-time:hover { border-color: var(--border); }
+.entry-time.editing {
+  background: var(--bg);
+  border-color: var(--accent);
+  color: var(--fg);
+  cursor: text;
+}
+.entry-private-btn,
+.entry-delete {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  min-height: 24px;
+  font-size: 12px;
+}
+.entry.private .entry-private-btn { color: var(--private); }
+.entry-delete:hover { color: var(--danger); }
+.entry-body {
+  display: block;
+  width: 100%;
+  background: transparent;
+  color: var(--fg);
+  border: none;
+  padding: 10px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: none;
+  outline: none;
+  overflow: hidden;
+  min-height: 1.6em;
+}
+.fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  border: none;
+  font-size: 28px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  z-index: 5;
+}
+.menu {
+  position: fixed;
+  right: 12px;
+  top: 48px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 0;
+  min-width: 220px;
+  display: none;
+  z-index: 20;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+.menu.open { display: block; }
+.menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 10px 14px;
+}
+.menu button:hover { background: var(--bg); }
+.menu hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+.toast {
+  position: fixed;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  z-index: 30;
+  max-width: 90%;
+  white-space: pre-wrap;
+}
+.badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--border);
+  color: var(--muted);
+}
+.badge.offline { background: #622; color: #fcc; }
+.hidden { display: none !important; }
+.empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 40px 20px;
+  font-size: 13px;
+}
+@media (max-width: 600px) {
+  header h1 { font-size: 14px; }
+  .label-full { display: none; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>edjiki</h1>
+  <span id="status" class="badge hidden">offline</span>
+  <span class="spacer"></span>
+  <button id="btn-search" title="検索 (Ctrl+F)">🔍</button>
+  <button id="btn-new" title="新規 (Ctrl+D)">＋<span class="label-full">新規</span></button>
+  <button id="btn-menu" title="メニュー">⋯</button>
+</header>
+<div class="menu" id="menu">
+  <button data-act="download">💾 ダウンロード (.txt)</button>
+  <button data-act="import">📂 ファイルから読込</button>
+  <hr>
+  <button data-act="drive-save">☁ Drive に保存</button>
+  <button data-act="drive-load">☁ Drive から読込</button>
+  <hr>
+  <button data-act="signout">ログアウト (Drive)</button>
+</div>
+<div class="search-bar hidden" id="search-bar">
+  <input id="search" type="search" placeholder="検索 (本文 or YYYY/MM/DD)">
+  <button id="btn-search-close">✕</button>
+</div>
+<main id="entries"></main>
+<button class="fab" id="fab" title="新規エントリ">＋</button>
+<input type="file" id="file-input" accept=".txt,text/plain" class="hidden">
+<script src="./config.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+"use strict";
+
+// ========== State ==========
+const STORAGE_KEY = "edjiki.data";
+const DEFAULT_NAME = "edjiki.txt";
+let state = loadLocal() || {
+  version: 1,
+  updatedAt: null,
+  driveFileId: null,
+  driveFileName: DEFAULT_NAME,
+  driveModifiedTime: null,
+  entries: []
+};
+
+function loadLocal() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) { return null; }
+}
+let saveTimer;
+function saveLocal(immediate) {
+  const run = () => {
+    state.updatedAt = nowIso();
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      toast("ローカル保存失敗: " + e.message);
+    }
+  };
+  clearTimeout(saveTimer);
+  if (immediate) run();
+  else saveTimer = setTimeout(run, 300);
+}
+
+// ========== Time utils ==========
+function pad(n) { return String(n).padStart(2, "0"); }
+function tzSuffix(d) {
+  const off = -d.getTimezoneOffset();
+  const sign = off >= 0 ? "+" : "-";
+  const ah = Math.abs(off);
+  return `${sign}${pad(Math.floor(ah/60))}:${pad(ah%60)}`;
+}
+function nowIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${tzSuffix(d)}`;
+}
+function isoFromParts(y, mo, d, h, mi, s) {
+  const dt = new Date(Number(y), Number(mo)-1, Number(d), Number(h), Number(mi), Number(s));
+  return `${y}-${pad(mo)}-${pad(d)}T${pad(h)}:${pad(mi)}:${pad(s)}${tzSuffix(dt)}`;
+}
+function fmtDisplay(iso) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+function fmtLocalInput(iso) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+// ========== Normalize (空行禁止) ==========
+function normalizeText(t) {
+  return t
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map(l => l.replace(/[ \t]+$/, ""))
+    .filter(l => l.length > 0)
+    .join("\n");
+}
+
+// ========== Txt serialize / parse ==========
+function serializeTxt(st) {
+  const sorted = [...st.entries].sort((a, b) => b.time.localeCompare(a.time));
+  const out = [];
+  for (const e of sorted) {
+    const d = new Date(e.time);
+    const head = `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${e.private ? "-" : ""}${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    const body = normalizeText(e.text);
+    if (!body) continue;
+    const lines = body.split("\n");
+    out.push(`${head} ${lines[0]}`);
+    for (let i = 1; i < lines.length; i++) out.push(lines[i]);
+  }
+  return out.join("\n") + (out.length ? "\n" : "");
+}
+function parseTxt(src) {
+  const lines = src.replace(/\r\n?/g, "\n").split("\n");
+  const HEAD = /^(\d{4})\/(\d{2})\/(\d{2}) (-?)(\d{2}):(\d{2}):(\d{2})(?: (.*))?$/;
+  const out = [];
+  let cur = null;
+  for (const line of lines) {
+    const m = line.match(HEAD);
+    if (m) {
+      if (cur) out.push(cur);
+      cur = {
+        id: newId(),
+        time: isoFromParts(m[1], m[2], m[3], m[5], m[6], m[7]),
+        private: m[4] === "-",
+        text: m[8] || ""
+      };
+    } else if (cur && line !== "") {
+      cur.text += (cur.text ? "\n" : "") + line;
+    }
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+// ========== Merge ==========
+function mergeEntries(local, incoming) {
+  // key: id が一致すれば同一、なければ time+private+text で重複判定
+  const byId = new Map();
+  const sigSet = new Set();
+  const sig = e => `${e.time}\t${e.private ? 1 : 0}\t${normalizeText(e.text)}`;
+  for (const e of local) {
+    byId.set(e.id, e);
+    sigSet.add(sig(e));
+  }
+  for (const e of incoming) {
+    if (byId.has(e.id)) {
+      const ex = byId.get(e.id);
+      if (e.time > ex.time) byId.set(e.id, e);
+    } else if (!sigSet.has(sig(e))) {
+      byId.set(e.id, e);
+      sigSet.add(sig(e));
+    }
+  }
+  const arr = Array.from(byId.values());
+  arr.sort((x, y) => y.time.localeCompare(x.time));
+  return arr;
+}
+
+// ========== ID ==========
+function newId() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return "id-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
+}
+
+// ========== Render ==========
+const $entries = document.getElementById("entries");
+function sortEntries() {
+  state.entries.sort((a, b) => b.time.localeCompare(a.time));
+}
+function render() {
+  sortEntries();
+  $entries.innerHTML = "";
+  const q = searchQuery.trim();
+  let shown = 0;
+  for (const e of state.entries) {
+    if (q && !matchQuery(e, q)) continue;
+    $entries.appendChild(renderEntry(e));
+    shown++;
+  }
+  if (shown === 0) {
+    const d = document.createElement("div");
+    d.className = "empty";
+    d.textContent = q ? "一致するエントリがありません" : "右下の ＋ で新規エントリを作成";
+    $entries.appendChild(d);
+  }
+  // resize after append
+  requestAnimationFrame(() => {
+    $entries.querySelectorAll("textarea").forEach(autoResize);
+  });
+}
+function renderEntry(e) {
+  const div = document.createElement("div");
+  div.className = "entry" + (e.private ? " private" : "");
+  div.dataset.id = e.id;
+
+  const head = document.createElement("div");
+  head.className = "entry-head";
+
+  const time = document.createElement("span");
+  time.className = "entry-time";
+  time.textContent = fmtDisplay(e.time);
+  time.title = "クリックで編集";
+  time.addEventListener("click", () => editTime(e, time));
+  head.appendChild(time);
+
+  const spacer = document.createElement("span");
+  spacer.style.flex = "1";
+  head.appendChild(spacer);
+
+  const privBtn = document.createElement("button");
+  privBtn.className = "entry-private-btn";
+  privBtn.textContent = e.private ? "🔒 private" : "🔓 public";
+  privBtn.title = "private 切替 (Ctrl+P)";
+  privBtn.addEventListener("click", () => {
+    e.private = !e.private;
+    saveLocal(true);
+    render();
+  });
+  head.appendChild(privBtn);
+
+  const delBtn = document.createElement("button");
+  delBtn.className = "entry-delete";
+  delBtn.textContent = "✕";
+  delBtn.title = "削除";
+  delBtn.addEventListener("click", () => {
+    state.entries = state.entries.filter(x => x.id !== e.id);
+    saveLocal(true);
+    render();
+  });
+  head.appendChild(delBtn);
+
+  div.appendChild(head);
+
+  const ta = document.createElement("textarea");
+  ta.className = "entry-body";
+  ta.value = e.text;
+  ta.spellcheck = false;
+  ta.addEventListener("input", () => {
+    e.text = ta.value;
+    autoResize(ta);
+    saveLocal();
+  });
+  ta.addEventListener("blur", () => {
+    const normalized = normalizeText(ta.value);
+    e.text = normalized;
+    if (normalized === "") {
+      state.entries = state.entries.filter(x => x.id !== e.id);
+      saveLocal(true);
+      render();
+    } else if (normalized !== ta.value) {
+      ta.value = normalized;
+      autoResize(ta);
+      saveLocal(true);
+    } else {
+      saveLocal(true);
+    }
+  });
+  div.appendChild(ta);
+  return div;
+}
+function autoResize(ta) {
+  ta.style.height = "auto";
+  ta.style.height = ta.scrollHeight + "px";
+}
+function editTime(e, span) {
+  const input = document.createElement("input");
+  input.type = "datetime-local";
+  input.step = "1";
+  input.value = fmtLocalInput(e.time);
+  input.className = "entry-time editing";
+  span.replaceWith(input);
+  input.focus();
+  let done = false;
+  const commit = () => {
+    if (done) return;
+    done = true;
+    if (input.value) {
+      const [date, time] = input.value.split("T");
+      const [y, mo, d] = date.split("-");
+      const tp = time.split(":");
+      const h = tp[0], mi = tp[1], s = tp[2] || "00";
+      e.time = isoFromParts(y, mo, d, h, mi, s);
+      saveLocal(true);
+    }
+    render();
+  };
+  input.addEventListener("blur", commit);
+  input.addEventListener("keydown", ev => {
+    if (ev.key === "Enter") input.blur();
+    if (ev.key === "Escape") { done = true; render(); }
+  });
+}
+
+// ========== Actions ==========
+function newEntry() {
+  const e = { id: newId(), time: nowIso(), private: false, text: "" };
+  state.entries.unshift(e);
+  saveLocal(true);
+  render();
+  const node = $entries.querySelector(`[data-id="${e.id}"] textarea`);
+  if (node) node.focus();
+}
+
+// ========== Search ==========
+let searchQuery = "";
+function matchQuery(e, q) {
+  if (e.text.includes(q)) return true;
+  const disp = fmtDisplay(e.time);
+  if (disp.startsWith(q)) return true;
+  return false;
+}
+
+// ========== Download / Import ==========
+function download() {
+  const txt = serializeTxt(state);
+  const blob = new Blob([txt], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = DEFAULT_NAME;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function importFile() {
+  document.getElementById("file-input").click();
+}
+document.getElementById("file-input").addEventListener("change", async (ev) => {
+  const f = ev.target.files[0];
+  if (!f) return;
+  try {
+    const txt = await f.text();
+    const imported = parseTxt(txt);
+    state.entries = mergeEntries(state.entries, imported);
+    saveLocal(true);
+    render();
+    toast(`${imported.length} 件読込 (マージ済)`);
+  } catch (e) {
+    toast("読込失敗: " + e.message);
+  }
+  ev.target.value = "";
+});
+
+// ========== Toast ==========
+let toastTimer;
+function toast(msg) {
+  let el = document.querySelector(".toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "toast";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.remove(); }, 3500);
+}
+
+// ========== Google Drive ==========
+let tokenClient = null;
+let accessToken = null;
+let pendingAction = null;
+
+function initDrive() {
+  if (tokenClient) return true;
+  if (!window.google || !window.google.accounts || !window.google.accounts.oauth2) return false;
+  if (!window.EDJIKI_CLIENT_ID) return false;
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: window.EDJIKI_CLIENT_ID,
+    scope: "https://www.googleapis.com/auth/drive.file",
+    callback: (resp) => {
+      if (resp.error) { toast("認証エラー: " + resp.error); return; }
+      accessToken = resp.access_token;
+      const act = pendingAction; pendingAction = null;
+      if (act) act();
+    },
+  });
+  return true;
+}
+function ensureAuth(next) {
+  if (!initDrive()) {
+    toast("Drive 未設定: config.js に EDJIKI_CLIENT_ID を設定してください");
+    return;
+  }
+  if (accessToken) return next();
+  pendingAction = next;
+  tokenClient.requestAccessToken({ prompt: "" });
+}
+async function driveGetMeta(id) {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=id,modifiedTime,name`, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+async function driveDownload(id) {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  if (!res.ok) throw new Error("ダウンロード失敗 " + res.status);
+  return res.text();
+}
+async function driveFindByName() {
+  const q = encodeURIComponent(`name='${DEFAULT_NAME}' and trashed=false`);
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.files && data.files[0];
+}
+async function driveUpload() {
+  const content = serializeTxt(state);
+  const metadata = { name: DEFAULT_NAME, mimeType: "text/plain" };
+  const boundary = "edjiki" + Math.random().toString(36).slice(2);
+  const body =
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
+    JSON.stringify(metadata) +
+    `\r\n--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n` +
+    content +
+    `\r\n--${boundary}--`;
+  const url = state.driveFileId
+    ? `https://www.googleapis.com/upload/drive/v3/files/${state.driveFileId}?uploadType=multipart&fields=id,modifiedTime`
+    : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,modifiedTime`;
+  const method = state.driveFileId ? "PATCH" : "POST";
+  const res = await fetch(url, {
+    method,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": `multipart/related; boundary=${boundary}`,
+    },
+    body,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+function driveSave() {
+  ensureAuth(async () => {
+    try {
+      // ファイルIDが無ければ name で探す
+      if (!state.driveFileId) {
+        const found = await driveFindByName();
+        if (found) {
+          state.driveFileId = found.id;
+          state.driveModifiedTime = found.modifiedTime;
+        }
+      }
+      // 競合チェック
+      if (state.driveFileId && state.driveModifiedTime) {
+        const meta = await driveGetMeta(state.driveFileId);
+        if (meta && meta.modifiedTime !== state.driveModifiedTime) {
+          if (!confirm("Drive 側が更新されています。\n[OK] マージして保存 / [キャンセル] 中止")) return;
+          const remote = await driveDownload(state.driveFileId);
+          const parsed = parseTxt(remote);
+          state.entries = mergeEntries(state.entries, parsed);
+          render();
+        }
+      }
+      const file = await driveUpload();
+      state.driveFileId = file.id;
+      state.driveModifiedTime = file.modifiedTime;
+      saveLocal(true);
+      toast("Drive に保存しました");
+    } catch (e) {
+      toast("Drive 保存失敗: " + e.message);
+    }
+  });
+}
+function driveLoad() {
+  ensureAuth(async () => {
+    try {
+      let id = state.driveFileId;
+      let meta = id ? await driveGetMeta(id) : null;
+      if (!meta) {
+        const found = await driveFindByName();
+        if (!found) { toast("Drive に " + DEFAULT_NAME + " が見つかりません"); return; }
+        id = found.id;
+        meta = found;
+      }
+      const txt = await driveDownload(id);
+      const imported = parseTxt(txt);
+      state.driveFileId = id;
+      state.driveModifiedTime = meta.modifiedTime;
+      state.entries = mergeEntries(state.entries, imported);
+      saveLocal(true);
+      render();
+      toast(`Drive から ${imported.length} 件読込 (マージ済)`);
+    } catch (e) {
+      toast("Drive 読込失敗: " + e.message);
+    }
+  });
+}
+function driveSignOut() {
+  if (accessToken && window.google && google.accounts && google.accounts.oauth2) {
+    google.accounts.oauth2.revoke(accessToken, () => {});
+  }
+  accessToken = null;
+  toast("Drive ログアウトしました");
+}
+
+// ========== UI wire ==========
+document.getElementById("btn-new").addEventListener("click", newEntry);
+document.getElementById("fab").addEventListener("click", newEntry);
+document.getElementById("btn-menu").addEventListener("click", (e) => {
+  e.stopPropagation();
+  document.getElementById("menu").classList.toggle("open");
+});
+document.addEventListener("click", (e) => {
+  const menu = document.getElementById("menu");
+  if (!menu.contains(e.target)) menu.classList.remove("open");
+});
+document.getElementById("menu").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  const act = btn.dataset.act;
+  document.getElementById("menu").classList.remove("open");
+  if (act === "download") download();
+  else if (act === "import") importFile();
+  else if (act === "drive-save") driveSave();
+  else if (act === "drive-load") driveLoad();
+  else if (act === "signout") driveSignOut();
+});
+
+const $searchBar = document.getElementById("search-bar");
+const $search = document.getElementById("search");
+document.getElementById("btn-search").addEventListener("click", () => {
+  $searchBar.classList.toggle("hidden");
+  if (!$searchBar.classList.contains("hidden")) $search.focus();
+});
+document.getElementById("btn-search-close").addEventListener("click", () => {
+  $searchBar.classList.add("hidden");
+  searchQuery = "";
+  $search.value = "";
+  render();
+});
+$search.addEventListener("input", () => {
+  searchQuery = $search.value;
+  render();
+});
+
+// Shortcuts
+document.addEventListener("keydown", (e) => {
+  const k = e.key.toLowerCase();
+  if (e.ctrlKey && !e.shiftKey && k === "d") { e.preventDefault(); newEntry(); }
+  else if (e.ctrlKey && !e.shiftKey && k === "s") { e.preventDefault(); saveLocal(true); toast("保存済"); }
+  else if (e.ctrlKey && e.shiftKey && k === "s") { e.preventDefault(); download(); }
+  else if (e.ctrlKey && e.shiftKey && k === "d") { e.preventDefault(); driveSave(); }
+  else if (e.ctrlKey && k === "f") { e.preventDefault(); $searchBar.classList.remove("hidden"); $search.focus(); }
+  else if (e.ctrlKey && k === "p") {
+    const active = document.activeElement && document.activeElement.closest && document.activeElement.closest(".entry");
+    if (active) {
+      e.preventDefault();
+      const ent = state.entries.find(x => x.id === active.dataset.id);
+      if (ent) { ent.private = !ent.private; saveLocal(true); render(); }
+    }
+  }
+  else if (e.key === "Escape" && !$searchBar.classList.contains("hidden")) {
+    $searchBar.classList.add("hidden");
+    searchQuery = "";
+    $search.value = "";
+    render();
+  }
+});
+
+// Online/offline
+function updateOnline() {
+  const st = document.getElementById("status");
+  if (navigator.onLine) st.classList.add("hidden");
+  else { st.classList.remove("hidden"); st.textContent = "offline"; }
+}
+window.addEventListener("online", updateOnline);
+window.addEventListener("offline", updateOnline);
+updateOnline();
+
+// Flush on visibility change
+window.addEventListener("beforeunload", () => saveLocal(true));
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") saveLocal(true);
+});
+
+render();
+</script>
+</body>
+</html>
