@@ -16,6 +16,16 @@ python3 -m http.server 8080
 
 Opening via `file://` breaks Google OAuth — always use HTTP.
 
+There is no build step, no test suite, and no linter. The only "development command" is the HTTP server above.
+
+## Navigating the single-file codebase
+
+All logic is in `edjiki.html`. Jump between sections with:
+
+```bash
+grep -n "// ==========" edjiki.html
+```
+
 ## Config
 
 Copy `config.sample.js` to `config.js` and insert your OAuth 2.0 Client ID. `config.js` is gitignored. Without it, all features work except Google Drive sync.
@@ -40,6 +50,7 @@ Note: `EDJIKI_DRIVE_FOLDER_ID` and `EDJIKI_DRIVE_FILE_ID` can also be set at run
 | `Ctrl+Shift+D` | Save to Drive |
 | `Ctrl+P` | Toggle public/private on focused entry |
 | `Ctrl+F` | Open search bar |
+| `Esc` | Close search bar |
 
 ## Production deploy
 
@@ -119,3 +130,14 @@ Header regex: `^(\d{4})\/(\d{2})\/(\d{2}) (-?)(\d{2}):(\d{2}):(\d{2})(?: (.*))?$
 - `driveDirty` (in-memory boolean) is set to `true` on any edit/add/delete/import; cleared on successful `driveSave` or `driveLoad`. `updateDriveDirtyUI()` shows/hides `#btn-drive-dirty` (the ☁ header button) based on `driveDirty && !!window.EDJIKI_CLIENT_ID`.
 - `driveUpload()` omits `name` from metadata when updating an existing file (PATCH) to avoid renaming it. `name` is only sent on initial file creation (POST).
 - `state.driveFolderId` is used by `driveFindByName()` and `driveUpload()` as the parent folder. `state.drivePinnedFileId` forces a specific file ID and widens the OAuth scope to `drive` (full access).
+
+## Known constraints
+
+| Constraint | Notes |
+|---|---|
+| localStorage limit ~5MB | If approaching limit, export to Drive and retire old entries to a file |
+| Drive access token lost on tab close | Silent re-auth on next Drive action |
+| `drive.file` scope restriction | Cannot access files created by other apps with same name — use `drivePinnedFileId` as workaround |
+| `file://` protocol unsupported | OAuth requires HTTP; always use the local server |
+| Password loss is unrecoverable | Private entries cannot be restored; Drive saves are plaintext `.txt` |
+| Drive operations blocked when locked | Must unlock (enter password) before saving/loading from Drive |

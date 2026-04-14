@@ -500,6 +500,36 @@ main {
 }
 .font-option:has(input:checked) { border-color: var(--accent); background: var(--bg); }
 .font-option input[type="radio"] { cursor: pointer; accent-color: var(--accent); }
+/* Theme selector */
+.theme-options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.theme-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--fg);
+  font-family: inherit;
+}
+.theme-option:hover { border-color: var(--accent); }
+.theme-option.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.theme-swatch {
+  width: 36px;
+  height: 22px;
+  border-radius: 3px;
+  border: 1px solid rgba(128,128,128,0.25);
+  overflow: hidden;
+  flex-shrink: 0;
+}
 </style>
 </head>
 <body>
@@ -531,6 +561,10 @@ main {
     <button id="btn-settings-close">✕</button>
   </div>
   <div class="settings-body">
+    <div class="settings-row">
+      <label class="settings-label">配色テーマ</label>
+      <div class="theme-options" id="theme-options"></div>
+    </div>
     <div class="settings-row">
       <label class="settings-label">フォントサイズ: <span id="font-size-val">16</span>px</label>
       <input type="range" id="setting-font-size" min="12" max="24" step="1" value="16">
@@ -706,6 +740,16 @@ main {
   <div class="pw-modal help-modal">
     <div class="pw-header">？ 操作ガイド</div>
     <div class="pw-body">
+      <div class="help-section">ヘッダーボタン</div>
+      <table class="help-table">
+        <tr><td>＋新規</td><td>新規エントリを先頭に追加</td></tr>
+        <tr><td>🔍</td><td>検索バーを開く</td></tr>
+        <tr><td>🔐 / 🔓</td><td>パスワード解除 / ロック（パスワード設定時のみ表示）</td></tr>
+        <tr><td>☁</td><td>Drive に未保存の変更あり → クリックで即時保存</td></tr>
+        <tr><td>⚙</td><td>設定パネルを開く（テーマ・フォント・Drive など）</td></tr>
+        <tr><td>?</td><td>このガイドを表示</td></tr>
+        <tr><td>⋯</td><td>メニュー（ダウンロード・インポート・Drive 操作）</td></tr>
+      </table>
       <div class="help-section">キーボードショートカット</div>
       <table class="help-table">
         <tr><td>Ctrl+D / N / M</td><td>新規エントリを先頭に追加</td></tr>
@@ -716,20 +760,50 @@ main {
         <tr><td>Ctrl+F</td><td>検索バーを開く</td></tr>
         <tr><td>Esc</td><td>検索バーを閉じる</td></tr>
       </table>
-      <div class="help-section">基本操作</div>
+      <div class="help-section">エントリの操作</div>
       <table class="help-table">
+        <tr><td>作成</td><td>＋新規ボタン・右下の ＋ ボタン（FAB）・Ctrl+D / N / M</td></tr>
+        <tr><td>本文編集</td><td>テキストエリアを直接入力。300ms デバウンスで自動保存</td></tr>
         <tr><td>タイムスタンプ</td><td>エントリ上部の日時をクリックで編集（秒単位まで）</td></tr>
         <tr><td>public / private</td><td>エントリ上部のボタンまたは Ctrl+P で切替</td></tr>
         <tr><td>削除</td><td>エントリ上部の ✕ ボタン（確認なし）</td></tr>
         <tr><td>自動削除</td><td>本文を空にしてフォーカスを外すと自動削除</td></tr>
-        <tr><td>検索</td><td>本文の部分一致 / YYYY/MM/DD の前方一致</td></tr>
-        <tr><td>インポート</td><td>⋯ メニュー → ファイルから読込（現在データとマージ）</td></tr>
+      </table>
+      <div class="help-section">検索</div>
+      <table class="help-table">
+        <tr><td>本文検索</td><td>キーワードを入力 → 部分一致で絞り込み</td></tr>
+        <tr><td>日付検索</td><td>2026/04 のように入力 → その月のエントリのみ表示</td></tr>
+        <tr><td>閉じる</td><td>Esc キーまたは ✕ ボタン</td></tr>
+      </table>
+      <div class="help-section">Google Drive 連携</div>
+      <table class="help-table">
+        <tr><td>保存</td><td>⋯ → Drive に保存 / Ctrl+Shift+D / ☁ ボタン</td></tr>
+        <tr><td>読込</td><td>⋯ → Drive から読込（ローカルとマージ）</td></tr>
+        <tr><td>競合時</td><td>Drive 側が更新済みなら確認ダイアログ → マージして保存</td></tr>
+        <tr><td>保存先変更</td><td>⚙ → Google Drive 連携 → フォルダを変更</td></tr>
+        <tr><td>ファイル直接指定</td><td>⚙ → Drive ファイル直接指定（他アプリ作成ファイルを使う場合。drive スコープに昇格）</td></tr>
       </table>
       <div class="help-section">パスワード保護</div>
       <table class="help-table">
         <tr><td>設定</td><td>⚙ → セキュリティ → パスワードを設定</td></tr>
         <tr><td>解除</td><td>ヘッダの 🔐 ボタンでパスワード入力</td></tr>
         <tr><td>ロック</td><td>ヘッダの 🔓 ボタン（ページ再読み込みでも自動ロック）</td></tr>
+        <tr><td>変更・削除</td><td>⚙ → セキュリティ</td></tr>
+        <tr><td>注意</td><td>パスワードを忘れると private エントリは復元不可。Drive 保存（平文 .txt）を定期的に行うこと</td></tr>
+      </table>
+      <div class="help-section">設定（⚙）</div>
+      <table class="help-table">
+        <tr><td>配色テーマ</td><td>自動・ダーク・ライト・セピア・さくら・ブルー・ノルド の 7 種類</td></tr>
+        <tr><td>フォントサイズ</td><td>12〜24px をスライダーで調整</td></tr>
+        <tr><td>行間</td><td>1.2〜2.0 をスライダーで調整</td></tr>
+        <tr><td>フォント</td><td>ゴシック・明朝・等幅など 12 書体から選択</td></tr>
+      </table>
+      <div class="help-section">データについて</div>
+      <table class="help-table">
+        <tr><td>保存先</td><td>localStorage（約 5MB 上限）に自動保存</td></tr>
+        <tr><td>テキスト形式</td><td>YYYY/MM/DD HH:MM:SS 本文（private は -HH:MM:SS）</td></tr>
+        <tr><td>インポート</td><td>⋯ → ファイルから読込（現在データとマージ、重複は自動除去）</td></tr>
+        <tr><td>エクスポート</td><td>⋯ → ダウンロード (.txt) で平文テキストとして保存</td></tr>
       </table>
     </div>
     <div class="pw-footer">
@@ -1623,7 +1697,16 @@ const FONT_FAMILIES = {
   "sans-serif":      "sans-serif",
   "monospace":       "ui-monospace, 'Cascadia Code', Consolas, 'Noto Sans Mono CJK JP', monospace"
 };
-const SETTINGS_DEFAULTS = { fontSize: 16, lineHeight: 1.6, fontKey: "biz-ud" };
+const THEMES = [
+  { key: "auto",       label: "自動"  },
+  { key: "dark",       label: "ダーク",  bg:"#1e1e1e", fg:"#e4e4e4", muted:"#888",    accent:"#4a9eff", border:"#333",    card:"#252525", private:"#c97",    danger:"#e55",    scheme:"dark"  },
+  { key: "light",      label: "ライト",  bg:"#fafafa", fg:"#222",    muted:"#666",    accent:"#06c",    border:"#ddd",    card:"#fff",    private:"#a60",    danger:"#c33",    scheme:"light" },
+  { key: "sepia",      label: "セピア",  bg:"#f4efe6", fg:"#3d2b1f", muted:"#9a7e6e", accent:"#8b5e3c", border:"#d6c9b8", card:"#faf7f0", private:"#a0522d", danger:"#c0392b", scheme:"light" },
+  { key: "sakura",     label: "さくら",  bg:"#fff0f3", fg:"#3b1a2e", muted:"#b07899", accent:"#d44b7a", border:"#f0c8d8", card:"#fff8fa", private:"#c0597a", danger:"#c0392b", scheme:"light" },
+  { key: "blue-water", label: "ブルー",  bg:"#0d1b2a", fg:"#d0e8f8", muted:"#5a8aaa", accent:"#4fc3f7", border:"#1e3a4f", card:"#122537", private:"#ff9c70", danger:"#ef5350", scheme:"dark"  },
+  { key: "nord",       label: "ノルド",  bg:"#2e3440", fg:"#eceff4", muted:"#7b8fa8", accent:"#88c0d0", border:"#434c5e", card:"#3b4252", private:"#ebcb8b", danger:"#bf616a", scheme:"dark"  },
+];
+const SETTINGS_DEFAULTS = { fontSize: 16, lineHeight: 1.6, fontKey: "biz-ud", theme: "auto" };
 let settings = (() => {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -1640,6 +1723,48 @@ function applySettings() {
   r.style.setProperty("--entry-font-size",   settings.fontSize + "px");
   r.style.setProperty("--entry-font-family", FONT_FAMILIES[settings.fontKey] || FONT_FAMILIES["biz-ud"]);
   r.style.setProperty("--entry-line-height", String(settings.lineHeight));
+  const t = THEMES.find(th => th.key === settings.theme);
+  if (t && t.bg) {
+    r.style.setProperty("--bg",          t.bg);
+    r.style.setProperty("--fg",          t.fg);
+    r.style.setProperty("--muted",       t.muted);
+    r.style.setProperty("--accent",      t.accent);
+    r.style.setProperty("--border",      t.border);
+    r.style.setProperty("--card",        t.card);
+    r.style.setProperty("--private",     t.private);
+    r.style.setProperty("--danger",      t.danger);
+    r.style.setProperty("color-scheme",  t.scheme);
+  } else {
+    ["--bg","--fg","--muted","--accent","--border","--card","--private","--danger","color-scheme"]
+      .forEach(v => r.style.removeProperty(v));
+  }
+}
+function renderThemeOptions() {
+  const container = document.getElementById("theme-options");
+  container.innerHTML = "";
+  THEMES.forEach(t => {
+    const btn = document.createElement("button");
+    btn.className = "theme-option" + (settings.theme === t.key ? " selected" : "");
+    btn.dataset.theme = t.key;
+    const swatch = document.createElement("div");
+    swatch.className = "theme-swatch";
+    if (t.bg) {
+      swatch.style.background = `linear-gradient(to right, ${t.bg} 60%, ${t.accent} 60%)`;
+    } else {
+      swatch.style.background = "linear-gradient(to right, #1e1e1e 50%, #fafafa 50%)";
+    }
+    const name = document.createElement("span");
+    name.textContent = t.label;
+    btn.appendChild(swatch);
+    btn.appendChild(name);
+    btn.addEventListener("click", () => {
+      settings.theme = t.key;
+      applySettings();
+      saveSettings();
+      renderThemeOptions();
+    });
+    container.appendChild(btn);
+  });
 }
 applySettings();
 
@@ -1660,6 +1785,7 @@ function openSettings() {
   $lineHVal.textContent    = settings.lineHeight.toFixed(1);
   const radio = document.querySelector(`input[name="font-family"][value="${settings.fontKey}"]`);
   if (radio) radio.checked = true;
+  renderThemeOptions();
   updateSecurityUI();
   updateDriveSettingsUI();
   updateDriveFileUI();
@@ -1983,6 +2109,10 @@ function showDriveFileDialog() {
     ? `現在のファイル ID: ${state.drivePinnedFileId}`
     : "未設定";
   okBtn.disabled = true;
+  document.querySelector("#drive-file-overlay .drive-open-link").href =
+    state.driveFolderId
+      ? `https://drive.google.com/drive/folders/${state.driveFolderId}`
+      : "https://drive.google.com/drive/";
   overlay.classList.remove("hidden");
   setTimeout(() => input.focus(), 30);
 
