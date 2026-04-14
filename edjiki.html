@@ -1032,7 +1032,7 @@ async function decryptEntry(e) {
     const text = await decryptText(cryptoKey, e.enc.iv, e.enc.ct);
     return { id: e.id, time: e.time, private: true, text };
   } catch {
-    return { id: e.id, time: e.time, private: true, text: null, enc: e.enc };
+    return { id: e.id, time: e.time, private: true, text: null, enc: e.enc, corrupted: true };
   }
 }
 
@@ -1129,7 +1129,7 @@ function newId() {
 // ========== Render ==========
 const $entries = document.getElementById("entries");
 function sortEntries() {
-  state.entries.sort((a, b) => b.time.localeCompare(a.time));
+  state.entries.sort((a, b) => new Date(b.time) - new Date(a.time));
 }
 function render() {
   const sy = window.scrollY;
@@ -1296,7 +1296,9 @@ function renderEntry(e) {
   if (e.text === null) {
     const locked = document.createElement("div");
     locked.className = "entry-locked";
-    locked.textContent = "🔒 ロック中 — 🔐 ボタンで解除";
+    locked.textContent = e.corrupted
+      ? "⚠ 復号失敗 — データが破損しているか、パスワードが違います"
+      : "🔒 ロック中 — 🔐 ボタンで解除";
     div.appendChild(locked);
     return div;
   }
@@ -1362,6 +1364,10 @@ function editTime(e, span) {
 
 // ========== Actions ==========
 function newEntry() {
+  if (searchQuery) {
+    searchQuery = "";
+    $search.value = "";
+  }
   const e = { id: newId(), time: nowIso(), private: false, text: "" };
   state.entries.unshift(e);
   driveDirty = true; updateDriveDirtyUI();
