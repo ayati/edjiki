@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic&family=M+PLUS+1p&family=M+PLUS+Rounded+1c&family=Noto+Sans+JP&family=Noto+Serif+JP&family=Zen+Old+Mincho&family=Shippori+Mincho&family=Sawarabi+Mincho&family=Hina+Mincho&display=swap" rel="stylesheet">
 <title>edjiki</title>
 <style>
 :root {
@@ -105,7 +108,7 @@ main {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 6px;
-  margin-bottom: 10px;
+  margin-bottom: 2px;
   overflow: hidden;
 }
 .entry.private {
@@ -156,13 +159,13 @@ main {
   color: var(--fg);
   border: none;
   padding: 10px;
-  font-family: inherit;
-  font-size: 14px;
-  line-height: 1.6;
+  font-family: var(--entry-font-family, 'BIZ UDPGothic', sans-serif);
+  font-size: var(--entry-font-size, 16px);
+  line-height: var(--entry-line-height, 1.6);
   resize: none;
   outline: none;
   overflow: hidden;
-  min-height: 1.6em;
+  min-height: calc(var(--entry-line-height, 1.6) * 1em);
 }
 .fab {
   position: fixed;
@@ -237,6 +240,78 @@ main {
   header h1 { font-size: 14px; }
   .label-full { display: none; }
 }
+/* Settings panel */
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 39;
+  display: none;
+}
+.settings-overlay.open { display: block; }
+.settings-panel {
+  position: fixed;
+  top: 0;
+  right: -300px;
+  width: 300px;
+  height: 100dvh;
+  background: var(--card);
+  border-left: 1px solid var(--border);
+  z-index: 40;
+  transition: right 0.22s cubic-bezier(.4,0,.2,1);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.settings-panel.open { right: 0; }
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  background: var(--card);
+}
+.settings-body {
+  padding: 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.settings-row { display: flex; flex-direction: column; gap: 8px; }
+.settings-label { font-size: 12px; color: var(--muted); }
+.settings-row input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.font-options { display: flex; flex-direction: column; gap: 6px; }
+.font-group {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  padding: 10px 2px 2px;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+}
+.font-group:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+.font-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--fg);
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+.font-option:has(input:checked) { border-color: var(--accent); background: var(--bg); }
+.font-option input[type="radio"] { cursor: pointer; accent-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -246,6 +321,7 @@ main {
   <span class="spacer"></span>
   <button id="btn-search" title="検索 (Ctrl+F)">🔍</button>
   <button id="btn-new" title="新規 (Ctrl+D)">＋<span class="label-full">新規</span></button>
+  <button id="btn-settings" title="設定">⚙</button>
   <button id="btn-menu" title="メニュー">⋯</button>
 </header>
 <div class="menu" id="menu">
@@ -256,6 +332,79 @@ main {
   <button data-act="drive-load">☁ Drive から読込</button>
   <hr>
   <button data-act="signout">ログアウト (Drive)</button>
+</div>
+<div class="settings-overlay" id="settings-overlay"></div>
+<div class="settings-panel" id="settings-panel">
+  <div class="settings-header">
+    <span>設定</span>
+    <button id="btn-settings-close">✕</button>
+  </div>
+  <div class="settings-body">
+    <div class="settings-row">
+      <label class="settings-label">フォントサイズ: <span id="font-size-val">16</span>px</label>
+      <input type="range" id="setting-font-size" min="12" max="24" step="1" value="16">
+    </div>
+    <div class="settings-row">
+      <label class="settings-label">行間: <span id="line-height-val">1.6</span></label>
+      <input type="range" id="setting-line-height" min="1.2" max="2.0" step="0.1" value="1.6">
+    </div>
+    <div class="settings-row">
+      <label class="settings-label">フォント</label>
+      <div class="font-options">
+        <div class="font-group">ゴシック</div>
+        <label class="font-option">
+          <input type="radio" name="font-family" value="biz-ud">
+          <span style="font-family:'BIZ UDPGothic',sans-serif">BIZ UDPGothic</span>
+        </label>
+        <label class="font-option">
+          <input type="radio" name="font-family" value="m-plus-1p">
+          <span style="font-family:'M PLUS 1p',sans-serif">M PLUS 1p</span>
+        </label>
+        <label class="font-option">
+          <input type="radio" name="font-family" value="m-plus-r1c">
+          <span style="font-family:'M PLUS Rounded 1c',sans-serif">M PLUS Rounded 1c</span>
+        </label>
+        <label class="font-option">
+          <input type="radio" name="font-family" value="noto-sans">
+          <span style="font-family:'Noto Sans JP',sans-serif">Noto Sans JP</span>
+        </label>
+        <div class="font-group">明朝</div>
+        <label class="font-option">
+          <input type="radio" name="font-family" value="noto-serif">
+          <span style="font-family:'Noto Serif JP',serif">Noto Serif JP</span>
+        </label>
+        <label class="font-option">
+          <input type="radio" name="font-family" value="zen-old-mincho">
+          <span style="font-family:'Zen Old Mincho',serif">ZEN オールド明朝</span>
+        </label>
+        <label class="font-option">
+          <input type="radio" name="font-family" value="shippori-mincho">
+          <span style="font-family:'Shippori Mincho',serif">しっぽり明朝</span>
+        </label>
+        <label class="font-option">
+          <input type="radio" name="font-family" value="sawarabi-mincho">
+          <span style="font-family:'Sawarabi Mincho',serif">さわらび明朝</span>
+        </label>
+        <label class="font-option">
+          <input type="radio" name="font-family" value="hina-mincho">
+          <span style="font-family:'Hina Mincho',serif">ひな明朝</span>
+        </label>
+        <div class="font-group">汎用・等幅</div>
+        <label class="font-option">
+          <input type="radio" name="font-family" value="serif">
+          <span style="font-family:serif">汎用セリフ</span>
+        </label>
+        <label class="font-option">
+          <input type="radio" name="font-family" value="sans-serif">
+          <span style="font-family:sans-serif">汎用サンセリフ</span>
+        </label>
+        <label class="font-option">
+          <input type="radio" name="font-family" value="monospace">
+          <span style="font-family:ui-monospace,monospace">ui-monospace</span>
+        </label>
+      </div>
+    </div>
+  </div>
 </div>
 <div class="search-bar hidden" id="search-bar">
   <input id="search" type="search" placeholder="検索 (本文 or YYYY/MM/DD)">
@@ -271,21 +420,31 @@ main {
 
 // ========== State ==========
 const STORAGE_KEY = "edjiki.data";
-const DEFAULT_NAME = "edjiki.txt";
+const DEFAULT_NAME   = "edjiki.txt";
+const DRIVE_FILENAME  = window.EDJIKI_DRIVE_FILENAME  || DEFAULT_NAME;
+const DRIVE_FOLDER_ID = window.EDJIKI_DRIVE_FOLDER_ID || null;
 let state = loadLocal() || {
   version: 1,
   updatedAt: null,
   driveFileId: null,
-  driveFileName: DEFAULT_NAME,
+  driveFileName: DRIVE_FILENAME,
   driveModifiedTime: null,
   entries: []
 };
+// config.js で保存先が変わっていたらドライブ参照をリセット
+if (state.driveFileName !== DRIVE_FILENAME) {
+  state.driveFileName    = DRIVE_FILENAME;
+  state.driveFileId      = null;
+  state.driveModifiedTime = null;
+}
 
 function loadLocal() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.entries)) return null;
+    return parsed;
   } catch (e) { return null; }
 }
 let saveTimer;
@@ -561,7 +720,7 @@ function download() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = DEFAULT_NAME;
+  a.download = DRIVE_FILENAME;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
@@ -643,8 +802,9 @@ async function driveDownload(id) {
   return res.text();
 }
 async function driveFindByName() {
-  const q = encodeURIComponent(`name='${DEFAULT_NAME}' and trashed=false`);
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`, {
+  let q = `name='${DRIVE_FILENAME}' and trashed=false`;
+  if (DRIVE_FOLDER_ID) q += ` and '${DRIVE_FOLDER_ID}' in parents`;
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`, {
     headers: { Authorization: `Bearer ${accessToken}` }
   });
   if (!res.ok) return null;
@@ -653,7 +813,8 @@ async function driveFindByName() {
 }
 async function driveUpload() {
   const content = serializeTxt(state);
-  const metadata = { name: DEFAULT_NAME, mimeType: "text/plain" };
+  const metadata = { name: DRIVE_FILENAME, mimeType: "text/plain" };
+  if (!state.driveFileId && DRIVE_FOLDER_ID) metadata.parents = [DRIVE_FOLDER_ID];
   const boundary = "edjiki" + Math.random().toString(36).slice(2);
   const body =
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
@@ -715,7 +876,7 @@ function driveLoad() {
       let meta = id ? await driveGetMeta(id) : null;
       if (!meta) {
         const found = await driveFindByName();
-        if (!found) { toast("Drive に " + DEFAULT_NAME + " が見つかりません"); return; }
+        if (!found) { toast("Drive に " + DRIVE_FILENAME + " が見つかりません"); return; }
         id = found.id;
         meta = found;
       }
@@ -818,6 +979,90 @@ updateOnline();
 window.addEventListener("beforeunload", () => saveLocal(true));
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") saveLocal(true);
+});
+
+// ========== Settings ==========
+const SETTINGS_KEY = "edjiki.settings";
+const FONT_FAMILIES = {
+  "biz-ud":          "'BIZ UDPGothic', sans-serif",
+  "m-plus-1p":       "'M PLUS 1p', sans-serif",
+  "m-plus-r1c":      "'M PLUS Rounded 1c', sans-serif",
+  "noto-sans":       "'Noto Sans JP', sans-serif",
+  "noto-serif":      "'Noto Serif JP', serif",
+  "zen-old-mincho":  "'Zen Old Mincho', serif",
+  "shippori-mincho": "'Shippori Mincho', serif",
+  "sawarabi-mincho": "'Sawarabi Mincho', serif",
+  "hina-mincho":     "'Hina Mincho', serif",
+  "serif":           "serif",
+  "sans-serif":      "sans-serif",
+  "monospace":       "ui-monospace, 'Cascadia Code', Consolas, 'Noto Sans Mono CJK JP', monospace"
+};
+const SETTINGS_DEFAULTS = { fontSize: 16, lineHeight: 1.6, fontKey: "biz-ud" };
+let settings = (() => {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) return { ...SETTINGS_DEFAULTS, ...JSON.parse(raw) };
+  } catch (e) {}
+  return { ...SETTINGS_DEFAULTS };
+})();
+
+function saveSettings() {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+function applySettings() {
+  const r = document.documentElement;
+  r.style.setProperty("--entry-font-size",   settings.fontSize + "px");
+  r.style.setProperty("--entry-font-family", FONT_FAMILIES[settings.fontKey] || FONT_FAMILIES["biz-ud"]);
+  r.style.setProperty("--entry-line-height", String(settings.lineHeight));
+}
+applySettings();
+
+const $settingsPanel   = document.getElementById("settings-panel");
+const $settingsOverlay = document.getElementById("settings-overlay");
+const $fontSizeSlider  = document.getElementById("setting-font-size");
+const $lineHSlider     = document.getElementById("setting-line-height");
+const $fontSizeVal     = document.getElementById("font-size-val");
+const $lineHVal        = document.getElementById("line-height-val");
+
+function resizeAll() {
+  requestAnimationFrame(() => $entries.querySelectorAll("textarea").forEach(autoResize));
+}
+function openSettings() {
+  $fontSizeSlider.value = settings.fontSize;
+  $lineHSlider.value    = settings.lineHeight;
+  $fontSizeVal.textContent = settings.fontSize;
+  $lineHVal.textContent    = settings.lineHeight.toFixed(1);
+  const radio = document.querySelector(`input[name="font-family"][value="${settings.fontKey}"]`);
+  if (radio) radio.checked = true;
+  $settingsPanel.classList.add("open");
+  $settingsOverlay.classList.add("open");
+}
+function closeSettings() {
+  $settingsPanel.classList.remove("open");
+  $settingsOverlay.classList.remove("open");
+}
+
+document.getElementById("btn-settings").addEventListener("click", openSettings);
+document.getElementById("btn-settings-close").addEventListener("click", closeSettings);
+$settingsOverlay.addEventListener("click", closeSettings);
+
+$fontSizeSlider.addEventListener("input", () => {
+  settings.fontSize = Number($fontSizeSlider.value);
+  $fontSizeVal.textContent = settings.fontSize;
+  applySettings(); saveSettings(); resizeAll();
+});
+$lineHSlider.addEventListener("input", () => {
+  settings.lineHeight = parseFloat($lineHSlider.value);
+  $lineHVal.textContent = settings.lineHeight.toFixed(1);
+  applySettings(); saveSettings(); resizeAll();
+});
+document.querySelectorAll("input[name='font-family']").forEach(radio => {
+  radio.addEventListener("change", () => {
+    if (radio.checked) {
+      settings.fontKey = radio.value;
+      applySettings(); saveSettings(); resizeAll();
+    }
+  });
 });
 
 render();
