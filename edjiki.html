@@ -230,6 +230,78 @@ main {
 }
 .badge.offline { background: #622; color: #fcc; }
 .hidden { display: none !important; }
+.entry-locked {
+  padding: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  font-style: italic;
+}
+/* Password modal */
+.pw-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pw-modal {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: min(340px, 90vw);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.pw-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 14px;
+}
+.pw-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pw-body label {
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pw-body input[type="password"] {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 14px;
+  width: 100%;
+}
+.pw-body input[type="password"]:focus { outline: none; border-color: var(--accent); }
+.pw-error {
+  font-size: 12px;
+  color: var(--danger);
+  min-height: 1.2em;
+}
+.pw-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.pw-footer .pw-ok {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+/* Security settings */
+.security-btns { display: flex; flex-direction: column; gap: 6px; }
 .empty {
   text-align: center;
   color: var(--muted);
@@ -321,6 +393,7 @@ main {
   <span class="spacer"></span>
   <button id="btn-search" title="検索 (Ctrl+F)">🔍</button>
   <button id="btn-new" title="新規 (Ctrl+D)">＋<span class="label-full">新規</span></button>
+  <button id="btn-lock" class="hidden" title="ロック / 解除">🔐</button>
   <button id="btn-settings" title="設定">⚙</button>
   <button id="btn-menu" title="メニュー">⋯</button>
 </header>
@@ -404,6 +477,10 @@ main {
         </label>
       </div>
     </div>
+    <div class="settings-row">
+      <label class="settings-label">セキュリティ</label>
+      <div class="security-btns" id="security-btns"></div>
+    </div>
   </div>
 </div>
 <div class="search-bar hidden" id="search-bar">
@@ -413,6 +490,19 @@ main {
 <main id="entries"></main>
 <button class="fab" id="fab" title="新規エントリ">＋</button>
 <input type="file" id="file-input" accept=".txt,text/plain" class="hidden">
+<div class="pw-overlay hidden" id="pw-overlay">
+  <div class="pw-modal">
+    <div class="pw-header" id="pw-title"></div>
+    <div class="pw-body">
+      <div id="pw-fields"></div>
+      <div id="pw-error" class="pw-error hidden"></div>
+    </div>
+    <div class="pw-footer">
+      <button id="pw-cancel">キャンセル</button>
+      <button id="pw-submit" class="pw-ok">OK</button>
+    </div>
+  </div>
+</div>
 <script src="./config.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
@@ -437,6 +527,14 @@ if (state.driveFileName !== DRIVE_FILENAME) {
   state.driveFileId      = null;
   state.driveModifiedTime = null;
 }
+// config.js で直接ファイル ID が指定されていれば優先適用
+const CONFIG_FILE_ID = window.EDJIKI_DRIVE_FILE_ID || null;
+if (CONFIG_FILE_ID && state.driveFileId !== CONFIG_FILE_ID) {
+  state.driveFileId      = CONFIG_FILE_ID;
+  state.driveModifiedTime = null;
+}
+// enc フィールドを持つエントリ（暗号化済 private）に text:null を付与して正規化
+state.entries = state.entries.map(e => (e.enc && e.text === undefined) ? { ...e, text: null } : e);
 
 function loadLocal() {
   try {
@@ -449,17 +547,18 @@ function loadLocal() {
 }
 let saveTimer;
 function saveLocal(immediate) {
-  const run = () => {
+  clearTimeout(saveTimer);
+  const run = async () => {
     state.updatedAt = nowIso();
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      const entries = await Promise.all(state.entries.map(encryptEntry));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, entries }));
     } catch (e) {
       toast("ローカル保存失敗: " + e.message);
     }
   };
-  clearTimeout(saveTimer);
-  if (immediate) run();
-  else saveTimer = setTimeout(run, 300);
+  if (immediate) return run();
+  saveTimer = setTimeout(run, 300);
 }
 
 // ========== Time utils ==========
@@ -504,7 +603,7 @@ function serializeTxt(st) {
   for (const e of sorted) {
     const d = new Date(e.time);
     const head = `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${e.private ? "-" : ""}${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    const body = normalizeText(e.text);
+    const body = normalizeText(e.text ?? "");  // null（ロック中）はスキップ
     if (!body) continue;
     const lines = body.split("\n");
     out.push(`${head} ${lines[0]}`);
@@ -540,7 +639,7 @@ function mergeEntries(local, incoming) {
   // key: id が一致すれば同一、なければ time+private+text で重複判定
   const byId = new Map();
   const sigSet = new Set();
-  const sig = e => `${e.time}\t${e.private ? 1 : 0}\t${normalizeText(e.text)}`;
+  const sig = e => `${e.time}\t${e.private ? 1 : 0}\t${normalizeText(e.text ?? "")}`;
   for (const e of local) {
     byId.set(e.id, e);
     sigSet.add(sig(e));
@@ -559,6 +658,144 @@ function mergeEntries(local, incoming) {
   return arr;
 }
 
+// ========== Crypto ==========
+let cryptoKey = null;
+
+function _b64(bytes) { return btoa(String.fromCharCode(...bytes)); }
+function _bytes(b64) { return Uint8Array.from(atob(b64), c => c.charCodeAt(0)); }
+
+async function deriveKey(password, saltB64) {
+  const km = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]
+  );
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt: _bytes(saltB64), iterations: 300000, hash: "SHA-256" },
+    km, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]
+  );
+}
+async function encryptText(key, plaintext) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv }, key, new TextEncoder().encode(plaintext)
+  );
+  return { iv: _b64(iv), ct: _b64(new Uint8Array(ct)) };
+}
+async function decryptText(key, ivB64, ctB64) {
+  const pt = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: _bytes(ivB64) }, key, _bytes(ctB64)
+  );
+  return new TextDecoder().decode(pt);
+}
+async function _checkVerifier(key) {
+  try {
+    return await decryptText(key, state.cryptoVerifier.iv, state.cryptoVerifier.ct) === "edjiki-verified";
+  } catch { return false; }
+}
+
+// エントリを localStorage 保存形式に変換（必要に応じて暗号化）
+async function encryptEntry(e) {
+  if (!e.private) return e;                        // public: そのまま
+  if (cryptoKey && e.text !== null) {              // unlocked private: 暗号化
+    const enc = await encryptText(cryptoKey, e.text);
+    return { id: e.id, time: e.time, private: true, enc };
+  }
+  if (e.enc) {                                     // locked private: enc を保持
+    return { id: e.id, time: e.time, private: true, enc: e.enc };
+  }
+  return { id: e.id, time: e.time, private: true, text: e.text };  // パスワード未設定
+}
+
+// エントリを localStorage からロード時にメモリ形式に変換
+async function decryptEntry(e) {
+  if (!e.enc) return e;
+  if (!cryptoKey) return { id: e.id, time: e.time, private: true, text: null, enc: e.enc };
+  try {
+    const text = await decryptText(cryptoKey, e.enc.iv, e.enc.ct);
+    return { id: e.id, time: e.time, private: true, text };
+  } catch {
+    return { id: e.id, time: e.time, private: true, text: null, enc: e.enc };
+  }
+}
+
+// パスワード設定（初回）
+async function setupPassword(password) {
+  const salt = _b64(crypto.getRandomValues(new Uint8Array(16)));
+  const key  = await deriveKey(password, salt);
+  const verifier = await encryptText(key, "edjiki-verified");
+  state.cryptoSalt     = salt;
+  state.cryptoVerifier = verifier;
+  state.version        = 2;
+  cryptoKey            = key;
+  await saveLocal(true);
+  updateLockBtn();
+  updateSecurityUI();
+}
+
+// パスワード削除（復号して平文に戻す）
+async function removePassword(password) {
+  const key = await deriveKey(password, state.cryptoSalt);
+  if (!await _checkVerifier(key)) return false;
+  state.entries = await Promise.all(state.entries.map(async e => {
+    if (!e.enc) return e;
+    try {
+      const text = await decryptText(key, e.enc.iv, e.enc.ct);
+      return { id: e.id, time: e.time, private: true, text };
+    } catch {
+      return { id: e.id, time: e.time, private: true, text: "" };
+    }
+  }));
+  delete state.cryptoSalt;
+  delete state.cryptoVerifier;
+  state.version = 1;
+  cryptoKey = null;
+  await saveLocal(true);
+  updateLockBtn();
+  updateSecurityUI();
+  render();
+  return true;
+}
+
+// パスワード変更
+async function changePassword(oldPw, newPw) {
+  const oldKey = await deriveKey(oldPw, state.cryptoSalt);
+  if (!await _checkVerifier(oldKey)) return false;
+  // 旧キーで全 private エントリを復号
+  state.entries = await Promise.all(state.entries.map(async e => {
+    if (!e.enc) return e;
+    const text = await decryptText(oldKey, e.enc.iv, e.enc.ct);
+    return { id: e.id, time: e.time, private: true, text };
+  }));
+  // 新キーで再設定
+  const salt = _b64(crypto.getRandomValues(new Uint8Array(16)));
+  const newKey = await deriveKey(newPw, salt);
+  state.cryptoSalt     = salt;
+  state.cryptoVerifier = await encryptText(newKey, "edjiki-verified");
+  cryptoKey            = newKey;
+  await saveLocal(true);
+  return true;
+}
+
+// パスワードで解除
+async function unlockWithPassword(password) {
+  const key = await deriveKey(password, state.cryptoSalt);
+  if (!await _checkVerifier(key)) return false;
+  cryptoKey     = key;
+  state.entries = await Promise.all(state.entries.map(decryptEntry));
+  return true;
+}
+
+// ロック（private エントリの text を null に、cryptoKey をクリア）
+async function lockEntries() {
+  if (!cryptoKey) return;
+  state.entries = await Promise.all(state.entries.map(async e => {
+    if (!e.private || e.text === null) return e;
+    const enc = await encryptText(cryptoKey, e.text);
+    return { id: e.id, time: e.time, private: true, text: null, enc };
+  }));
+  cryptoKey = null;
+  saveLocal(true);
+}
+
 // ========== ID ==========
 function newId() {
   if (crypto.randomUUID) return crypto.randomUUID();
@@ -571,6 +808,7 @@ function sortEntries() {
   state.entries.sort((a, b) => b.time.localeCompare(a.time));
 }
 function render() {
+  const sy = window.scrollY;
   sortEntries();
   $entries.innerHTML = "";
   const q = searchQuery.trim();
@@ -586,9 +824,10 @@ function render() {
     d.textContent = q ? "一致するエントリがありません" : "右下の ＋ で新規エントリを作成";
     $entries.appendChild(d);
   }
-  // resize after append
+  // resize after append, then restore scroll
   requestAnimationFrame(() => {
     $entries.querySelectorAll("textarea").forEach(autoResize);
+    window.scrollTo(0, sy);
   });
 }
 function renderEntry(e) {
@@ -614,7 +853,9 @@ function renderEntry(e) {
   privBtn.className = "entry-private-btn";
   privBtn.textContent = e.private ? "🔒 private" : "🔓 public";
   privBtn.title = "private 切替 (Ctrl+P)";
+  privBtn.disabled = (e.text === null);  // ロック中は切替不可
   privBtn.addEventListener("click", () => {
+    if (e.text === null) return;
     e.private = !e.private;
     saveLocal(true);
     render();
@@ -633,6 +874,15 @@ function renderEntry(e) {
   head.appendChild(delBtn);
 
   div.appendChild(head);
+
+  // ロック中エントリはテキストエリアを表示しない
+  if (e.text === null) {
+    const locked = document.createElement("div");
+    locked.className = "entry-locked";
+    locked.textContent = "🔒 ロック中 — 🔐 ボタンで解除";
+    div.appendChild(locked);
+    return div;
+  }
 
   const ta = document.createElement("textarea");
   ta.className = "entry-body";
@@ -677,12 +927,9 @@ function editTime(e, span) {
   const commit = () => {
     if (done) return;
     done = true;
-    if (input.value) {
-      const [date, time] = input.value.split("T");
-      const [y, mo, d] = date.split("-");
-      const tp = time.split(":");
-      const h = tp[0], mi = tp[1], s = tp[2] || "00";
-      e.time = isoFromParts(y, mo, d, h, mi, s);
+    const m = input.value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if (m) {
+      e.time = isoFromParts(m[1], m[2], m[3], m[4], m[5], m[6] || "00");
       saveLocal(true);
     }
     render();
@@ -707,6 +954,7 @@ function newEntry() {
 // ========== Search ==========
 let searchQuery = "";
 function matchQuery(e, q) {
+  if (e.text === null) return false;  // ロック中は検索対象外
   if (e.text.includes(q)) return true;
   const disp = fmtDisplay(e.time);
   if (disp.startsWith(q)) return true;
@@ -768,7 +1016,9 @@ function initDrive() {
   if (!window.EDJIKI_CLIENT_ID) return false;
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: window.EDJIKI_CLIENT_ID,
-    scope: "https://www.googleapis.com/auth/drive.file",
+    scope: CONFIG_FILE_ID
+      ? "https://www.googleapis.com/auth/drive"
+      : "https://www.googleapis.com/auth/drive.file",
     callback: (resp) => {
       if (resp.error) { toast("認証エラー: " + resp.error); return; }
       accessToken = resp.access_token;
@@ -791,7 +1041,8 @@ async function driveGetMeta(id) {
   const res = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=id,modifiedTime,name`, {
     headers: { Authorization: `Bearer ${accessToken}` }
   });
-  if (!res.ok) return null;
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Drive API エラー ${res.status}`);
   return res.json();
 }
 async function driveDownload(id) {
@@ -807,7 +1058,7 @@ async function driveFindByName() {
   const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`, {
     headers: { Authorization: `Bearer ${accessToken}` }
   });
-  if (!res.ok) return null;
+  if (!res.ok) throw new Error(`Drive API エラー ${res.status}`);
   const data = await res.json();
   return data.files && data.files[0];
 }
@@ -838,6 +1089,10 @@ async function driveUpload() {
   return res.json();
 }
 function driveSave() {
+  if (state.cryptoVerifier && !cryptoKey) {
+    toast("Drive 操作にはパスワード解除が必要です");
+    return;
+  }
   ensureAuth(async () => {
     try {
       // ファイルIDが無ければ name で探す
@@ -870,6 +1125,10 @@ function driveSave() {
   });
 }
 function driveLoad() {
+  if (state.cryptoVerifier && !cryptoKey) {
+    toast("Drive 操作にはパスワード解除が必要です");
+    return;
+  }
   ensureAuth(async () => {
     try {
       let id = state.driveFileId;
@@ -904,6 +1163,15 @@ function driveSignOut() {
 // ========== UI wire ==========
 document.getElementById("btn-new").addEventListener("click", newEntry);
 document.getElementById("fab").addEventListener("click", newEntry);
+document.getElementById("btn-lock").addEventListener("click", async () => {
+  if (!cryptoKey) {
+    showPasswordModal("unlock");
+  } else {
+    await lockEntries();
+    updateLockBtn();
+    render();
+  }
+});
 document.getElementById("btn-menu").addEventListener("click", (e) => {
   e.stopPropagation();
   document.getElementById("menu").classList.toggle("open");
@@ -954,7 +1222,7 @@ document.addEventListener("keydown", (e) => {
     if (active) {
       e.preventDefault();
       const ent = state.entries.find(x => x.id === active.dataset.id);
-      if (ent) { ent.private = !ent.private; saveLocal(true); render(); }
+      if (ent && ent.text !== null) { ent.private = !ent.private; saveLocal(true); render(); }
     }
   }
   else if (e.key === "Escape" && !$searchBar.classList.contains("hidden")) {
@@ -1034,8 +1302,141 @@ function openSettings() {
   $lineHVal.textContent    = settings.lineHeight.toFixed(1);
   const radio = document.querySelector(`input[name="font-family"][value="${settings.fontKey}"]`);
   if (radio) radio.checked = true;
+  updateSecurityUI();
   $settingsPanel.classList.add("open");
   $settingsOverlay.classList.add("open");
+}
+function updateSecurityUI() {
+  const div = document.getElementById("security-btns");
+  div.innerHTML = "";
+  if (!state.cryptoVerifier) {
+    const btn = document.createElement("button");
+    btn.textContent = "🔐 パスワードを設定...";
+    btn.addEventListener("click", () => { closeSettings(); showPasswordModal("setup"); });
+    div.appendChild(btn);
+  } else {
+    const btnChange = document.createElement("button");
+    btnChange.textContent = "🔑 パスワードを変更...";
+    btnChange.addEventListener("click", () => { closeSettings(); showPasswordModal("change"); });
+    div.appendChild(btnChange);
+    const btnRemove = document.createElement("button");
+    btnRemove.textContent = "🔓 パスワードを削除...";
+    btnRemove.addEventListener("click", () => { closeSettings(); showPasswordModal("remove"); });
+    div.appendChild(btnRemove);
+  }
+}
+function updateLockBtn() {
+  const btn = document.getElementById("btn-lock");
+  if (!state.cryptoVerifier) { btn.classList.add("hidden"); return; }
+  btn.classList.remove("hidden");
+  if (cryptoKey) {
+    btn.textContent = "🔓";
+    btn.title = "ロック";
+    btn.style.color = "var(--muted)";
+  } else {
+    btn.textContent = "🔐";
+    btn.title = "解除";
+    btn.style.color = "var(--accent)";
+  }
+}
+function showPasswordModal(mode) {
+  const overlay  = document.getElementById("pw-overlay");
+  const titleEl  = document.getElementById("pw-title");
+  const fieldsEl = document.getElementById("pw-fields");
+  const errEl    = document.getElementById("pw-error");
+  const submitBtn = document.getElementById("pw-submit");
+  const cancelBtn = document.getElementById("pw-cancel");
+
+  fieldsEl.innerHTML = "";
+  errEl.textContent = "";
+  errEl.classList.add("hidden");
+  submitBtn.disabled = false;
+
+  const mkInput = (labelText, id) => {
+    const lbl = document.createElement("label");
+    lbl.textContent = labelText;
+    const inp = document.createElement("input");
+    inp.type = "password";
+    inp.id = id;
+    inp.autocomplete = "off";
+    lbl.appendChild(inp);
+    fieldsEl.appendChild(lbl);
+    return inp;
+  };
+
+  let inputs = {};
+  if (mode === "unlock") {
+    titleEl.textContent = "🔐 パスワードを入力";
+    inputs.pw = mkInput("パスワード", "pw-input");
+  } else if (mode === "setup") {
+    titleEl.textContent = "🔐 パスワードを設定";
+    inputs.pw      = mkInput("新しいパスワード", "pw-input");
+    inputs.confirm = mkInput("確認（もう一度）", "pw-confirm");
+  } else if (mode === "change") {
+    titleEl.textContent = "🔑 パスワードを変更";
+    inputs.old     = mkInput("現在のパスワード", "pw-old");
+    inputs.pw      = mkInput("新しいパスワード", "pw-input");
+    inputs.confirm = mkInput("確認（もう一度）", "pw-confirm");
+  } else if (mode === "remove") {
+    titleEl.textContent = "🔓 パスワードを削除";
+    inputs.pw = mkInput("現在のパスワード", "pw-input");
+  }
+
+  overlay.classList.remove("hidden");
+  const first = fieldsEl.querySelector("input");
+  if (first) setTimeout(() => first.focus(), 30);
+
+  const showErr = msg => { errEl.textContent = msg; errEl.classList.remove("hidden"); };
+
+  // 前回のイベントリスナーをリセット
+  const newSubmit = submitBtn.cloneNode(true);
+  submitBtn.parentNode.replaceChild(newSubmit, submitBtn);
+  const newCancel = cancelBtn.cloneNode(true);
+  cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+
+  document.getElementById("pw-submit").addEventListener("click", async () => {
+    const btn = document.getElementById("pw-submit");
+    btn.disabled = true;
+    errEl.classList.add("hidden");
+    try {
+      if (mode === "unlock") {
+        const ok = await unlockWithPassword(inputs.pw.value);
+        if (!ok) { showErr("パスワードが正しくありません"); return; }
+        overlay.classList.add("hidden");
+        updateLockBtn();
+        render();
+      } else if (mode === "setup") {
+        if (!inputs.pw.value) { showErr("パスワードを入力してください"); return; }
+        if (inputs.pw.value !== inputs.confirm.value) { showErr("パスワードが一致しません"); return; }
+        await setupPassword(inputs.pw.value);
+        overlay.classList.add("hidden");
+        toast("パスワードを設定しました");
+      } else if (mode === "change") {
+        if (!inputs.pw.value) { showErr("新しいパスワードを入力してください"); return; }
+        if (inputs.pw.value !== inputs.confirm.value) { showErr("パスワードが一致しません"); return; }
+        const ok = await changePassword(inputs.old.value, inputs.pw.value);
+        if (!ok) { showErr("現在のパスワードが正しくありません"); return; }
+        overlay.classList.add("hidden");
+        toast("パスワードを変更しました");
+      } else if (mode === "remove") {
+        const ok = await removePassword(inputs.pw.value);
+        if (!ok) { showErr("パスワードが正しくありません"); return; }
+        overlay.classList.add("hidden");
+        toast("パスワードを削除しました");
+      }
+    } finally {
+      const b = document.getElementById("pw-submit");
+      if (b) b.disabled = false;
+    }
+  });
+  document.getElementById("pw-cancel").addEventListener("click", () => {
+    overlay.classList.add("hidden");
+    if (mode === "unlock") render();  // ロック中のまま表示
+  });
+  // Enter キーでサブミット
+  fieldsEl.addEventListener("keydown", ev => {
+    if (ev.key === "Enter") document.getElementById("pw-submit").click();
+  });
 }
 function closeSettings() {
   $settingsPanel.classList.remove("open");
@@ -1065,7 +1466,11 @@ document.querySelectorAll("input[name='font-family']").forEach(radio => {
   });
 });
 
+updateLockBtn();
 render();
+if (state.cryptoVerifier && !cryptoKey) {
+  showPasswordModal("unlock");
+}
 </script>
 </body>
 </html>

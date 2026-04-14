@@ -11,3 +11,10 @@ window.EDJIKI_CLIENT_ID = "YOUR_CLIENT_ID.apps.googleusercontent.com";
 // 例: https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz
 //                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ ここ
 // window.EDJIKI_DRIVE_FOLDER_ID = "1AbCdEfGhIjKlMnOpQrStUvWxYz";
+
+// オプション: 既存ファイルの Drive ファイル ID（アプリ外で作成したファイルを使う場合）
+// Google Drive でファイルを開き、URL の末尾の ID をコピーして貼り付けてください
+// 例: https://drive.google.com/file/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/view
+//                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ ここ
+// ※ このオプションを設定すると OAuth スコープが drive.file → drive に拡張されます
+// window.EDJIKI_DRIVE_FILE_ID = "1AbCdEfGhIjKlMnOpQrStUvWxYz";
