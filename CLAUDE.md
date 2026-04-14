@@ -126,6 +126,9 @@ Header regex: `^(\d{4})\/(\d{2})\/(\d{2}) (-?)(\d{2}):(\d{2}):(\d{2})(?: (.*))?$
 - The Google Drive token (`accessToken`) is in-memory only; it is never persisted to `localStorage`. `pendingAction` queues one Drive operation while awaiting token acquisition.
 - `cryptoKey` (a non-extractable `CryptoKey`) is in-memory only — never stored anywhere. Lost on page close.
 - Locked entries (`text === null`) are skipped by `serializeTxt`, `matchQuery`, and `Ctrl+P`. Drive operations require the app to be unlocked.
+- Decryption failure sets `corrupted: true` on the entry (in-memory only, never persisted); render shows a distinct "復号失敗" message instead of "ロック中".
+- `private` toggle (button and Ctrl+P) is disabled when the entry is public and no password is set (`!state.cryptoVerifier`). Already-private entries can still be toggled back to public without a password.
+- `download()` shows a warning toast if any private entry with visible text (`text !== null`) is present — `.txt` export is always plaintext regardless of password.
 - On startup: entries with `enc` field but no `text` field get `text: null` injected before first render. If `state.cryptoVerifier` exists, `showPasswordModal("unlock")` is called after `render()`.
 - `driveDirty` (in-memory boolean) is set to `true` on any edit/add/delete/import; cleared on successful `driveSave` or `driveLoad`. `updateDriveDirtyUI()` shows/hides `#btn-drive-dirty` (the ☁ header button) based on `driveDirty && !!window.EDJIKI_CLIENT_ID`.
 - `driveUpload()` omits `name` from metadata when updating an existing file (PATCH) to avoid renaming it. `name` is only sent on initial file creation (POST).
