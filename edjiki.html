@@ -1118,7 +1118,12 @@ async function lockEntries() {
 // ========== ID ==========
 function newId() {
   if (crypto.randomUUID) return crypto.randomUUID();
-  return "id-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  return [...b].map((v, i) =>
+    ([4, 6, 8, 10].includes(i) ? "-" : "") + v.toString(16).padStart(2, "0")
+  ).join("");
 }
 
 // ========== Render ==========
@@ -1393,6 +1398,11 @@ function importFile() {
 document.getElementById("file-input").addEventListener("change", async (ev) => {
   const f = ev.target.files[0];
   if (!f) return;
+  if (f.size > 10 * 1024 * 1024) {
+    toast("ファイルが大きすぎます（上限 10MB）");
+    ev.target.value = "";
+    return;
+  }
   try {
     const txt = await f.text();
     const imported = parseTxt(txt);
