@@ -1267,10 +1267,14 @@ function renderEntry(e) {
   const privBtn = document.createElement("button");
   privBtn.className = "entry-private-btn";
   privBtn.textContent = e.private ? "🔒 private" : "🔓 public";
-  privBtn.title = "private 切替 (Ctrl+P)";
-  privBtn.disabled = (e.text === null);  // ロック中は切替不可
+  // ロック中、またはパスワード未設定で public → private にしようとしている場合は無効
+  const canTogglePrivate = e.text !== null && (e.private || !!state.cryptoVerifier);
+  privBtn.disabled = !canTogglePrivate;
+  privBtn.title = (!e.private && !state.cryptoVerifier)
+    ? "⚙ → セキュリティでパスワードを設定すると private にできます"
+    : "private 切替 (Ctrl+P)";
   privBtn.addEventListener("click", () => {
-    if (e.text === null) return;
+    if (!canTogglePrivate) return;
     e.private = !e.private;
     driveDirty = true; updateDriveDirtyUI();
     saveLocal(true);
@@ -1397,6 +1401,9 @@ function download() {
   a.download = DRIVE_FILENAME;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  if (state.entries.some(e => e.private && e.text !== null)) {
+    toast("⚠ private エントリを含みます（平文で出力されます）");
+  }
 }
 function importFile() {
   document.getElementById("file-input").click();
@@ -1670,7 +1677,7 @@ document.addEventListener("keydown", (e) => {
     if (active) {
       e.preventDefault();
       const ent = state.entries.find(x => x.id === active.dataset.id);
-      if (ent && ent.text !== null) { ent.private = !ent.private; saveLocal(true); render(); }
+      if (ent && ent.text !== null && (ent.private || state.cryptoVerifier)) { ent.private = !ent.private; saveLocal(true); render(); }
     }
   }
   else if (e.key === "Escape" && !$searchBar.classList.contains("hidden")) {
