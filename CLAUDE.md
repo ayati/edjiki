@@ -20,6 +20,31 @@ Opening via `file://` breaks Google OAuth — always use HTTP.
 
 Copy `config.sample.js` to `config.js` and insert your OAuth 2.0 Client ID. `config.js` is gitignored. Without it, all features work except Google Drive sync.
 
+Optional `config.js` variables:
+```js
+window.EDJIKI_CLIENT_ID       = "…";           // required for Drive
+window.EDJIKI_DRIVE_FILENAME  = "memo.txt";    // default: "edjiki.txt"
+window.EDJIKI_DRIVE_FOLDER_ID = "<folder-id>"; // initial save folder (overridable via UI)
+window.EDJIKI_DRIVE_FILE_ID   = "<file-id>";   // pin a pre-existing file; expands OAuth scope to `drive`
+```
+
+Note: `EDJIKI_DRIVE_FOLDER_ID` and `EDJIKI_DRIVE_FILE_ID` can also be set at runtime via the settings panel (⚙ → Google Drive 連携 / Drive ファイル直接指定). Runtime values are stored in `state` and take precedence over config.js on subsequent loads.
+
+## Keyboard shortcuts (useful for manual testing)
+
+| Key | Action |
+|---|---|
+| `Ctrl+D` / `N` / `M` | New entry |
+| `Ctrl+S` | Flush save to localStorage |
+| `Ctrl+Shift+S` | Download `.txt` |
+| `Ctrl+Shift+D` | Save to Drive |
+| `Ctrl+P` | Toggle public/private on focused entry |
+| `Ctrl+F` | Open search bar |
+
+## Production deploy
+
+`edjiki.html` and `config.js` are served from `https://www.ayati.com/`. The OAuth client ID in Google Cloud Console has that origin (plus `http://localhost:8080`) registered as an authorized JavaScript origin.
+
 ## Architecture (all in `edjiki.html`)
 
 The script is organized into named sections separated by `// ========== Section ==========` comments:
@@ -31,27 +56,29 @@ The script is organized into named sections separated by `// ========== Section 
 | **Normalize** | `normalizeText` strips empty lines and trailing whitespace — entries with empty normalized text are auto-deleted |
 | **Txt serialize/parse** | `serializeTxt` / `parseTxt` — text format is `YYYY/MM/DD HH:MM:SS body` (private entries use `-HH:MM:SS`) |
 | **Merge** | `mergeEntries(local, incoming)` — deduplicates by `id` first, then by `time+private+normalizedText` signature; winner on `id` collision is the entry with the later `time` |
-| **Render** | Full DOM re-render on every state change; `autoResize` keeps textareas fitted to content |
-| **Actions** | `newEntry` — creates entry, prepends to `state.entries`, calls `render()`, focuses textarea |
+| **Render** | Full DOM re-render on every state change; `autoResize` keeps textareas fitted to content; `buildOnboardingCard()` renders first-run guidance when `state.entries` is empty |
+| **Actions** | `newEntry` — creates entry, prepends to `state.entries`, sets `driveDirty`, calls `render()`, focuses textarea |
 | **Search** | `matchQuery` — partial text match OR date-prefix match against `fmtDisplay` output |
 | **Download / Import** | `download` (serializeTxt → Blob), `importFile` (parseTxt + mergeEntries) |
 | **Toast** | `toast(msg)` — creates `.toast` div, auto-removes after 3.5 s |
-| **Drive** | GSI token client (`drive.file` scope, or `drive` when `EDJIKI_DRIVE_FILE_ID` is set); `driveSave` checks `modifiedTime` before upload and prompts merge on conflict; `driveLoad` merges remote into local; both are blocked when entries are locked |
+| **Drive** | GSI token client; scope is `drive.file` normally, `drive` when `state.drivePinnedFileId` or `CONFIG_FILE_ID` is set; `driveSave` checks `modifiedTime` before upload and prompts merge on conflict; `driveLoad` merges remote into local; both blocked when locked; `driveDirty` flag + `updateDriveDirtyUI()` shows/hides the ☁ header button |
 | **UI wire** | Event listeners, keyboard shortcuts, online/offline banner, `beforeunload`/`visibilitychange` flush |
-| **Settings** | Font, font-size, line-height — stored separately in `localStorage["edjiki.settings"]`, applied via CSS custom properties on `<body>` |
+| **Settings** | Font, font-size, line-height — stored separately in `localStorage["edjiki.settings"]`, applied via CSS custom properties on `<body>`; Drive folder/file dialogs (`showDriveFolderDialog`, `showDriveFileDialog`) update `state.driveFolderId` / `state.drivePinnedFileId` |
 | **Crypto** | `deriveKey` (PBKDF2/SHA-256, 300k iterations), `encryptText`/`decryptText` (AES-GCM 256bit), `encryptEntry`/`decryptEntry`, `setupPassword`/`removePassword`/`changePassword`/`unlockWithPassword`/`lockEntries` |
 
 ### State shape
 
 ```js
 {
-  version: 1 | 2,              // 2 = password configured
+  version: 1 | 2,               // 2 = password configured
   updatedAt: "<ISO>",
-  driveFileId: "<id>" | null,
+  driveFileId: "<id>" | null,   // Drive file ID of the current save file
   driveFileName: "edjiki.txt",
+  driveFolderId: "<id>" | null, // save folder (null = My Drive root)
+  drivePinnedFileId: "<id>" | null, // explicit file ID set by user or config; expands scope to `drive`
   driveModifiedTime: "<ISO>" | null,
-  cryptoSalt: "<Base64>",      // present when version === 2
-  cryptoVerifier: { iv, ct },  // AES-GCM encrypted "edjiki-verified", for password check
+  cryptoSalt: "<Base64>",       // present when version === 2
+  cryptoVerifier: { iv, ct },   // AES-GCM encrypted "edjiki-verified", for password check
   entries: [{ id, time, private, text }, ...]  // always time-descending
 }
 ```
@@ -89,3 +116,6 @@ Header regex: `^(\d{4})\/(\d{2})\/(\d{2}) (-?)(\d{2}):(\d{2}):(\d{2})(?: (.*))?$
 - `cryptoKey` (a non-extractable `CryptoKey`) is in-memory only — never stored anywhere. Lost on page close.
 - Locked entries (`text === null`) are skipped by `serializeTxt`, `matchQuery`, and `Ctrl+P`. Drive operations require the app to be unlocked.
 - On startup: entries with `enc` field but no `text` field get `text: null` injected before first render. If `state.cryptoVerifier` exists, `showPasswordModal("unlock")` is called after `render()`.
+- `driveDirty` (in-memory boolean) is set to `true` on any edit/add/delete/import; cleared on successful `driveSave` or `driveLoad`. `updateDriveDirtyUI()` shows/hides `#btn-drive-dirty` (the ☁ header button) based on `driveDirty && !!window.EDJIKI_CLIENT_ID`.
+- `driveUpload()` omits `name` from metadata when updating an existing file (PATCH) to avoid renaming it. `name` is only sent on initial file creation (POST).
+- `state.driveFolderId` is used by `driveFindByName()` and `driveUpload()` as the parent folder. `state.drivePinnedFileId` forces a specific file ID and widens the OAuth scope to `drive` (full access).

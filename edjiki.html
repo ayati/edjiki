@@ -230,6 +230,7 @@ main {
 }
 .badge.offline { background: #622; color: #fcc; }
 .hidden { display: none !important; }
+#btn-drive-dirty { color: var(--accent, #4a90d9); font-size: 18px; }
 .entry-locked {
   padding: 10px;
   color: var(--muted);
@@ -283,6 +284,17 @@ main {
   width: 100%;
 }
 .pw-body input[type="password"]:focus { outline: none; border-color: var(--accent); }
+.pw-body input[type="text"] {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 14px;
+  width: 100%;
+}
+.pw-body input[type="text"]:focus { outline: none; border-color: var(--accent); }
 .pw-error {
   font-size: 12px;
   color: var(--danger);
@@ -302,12 +314,116 @@ main {
 }
 /* Security settings */
 .security-btns { display: flex; flex-direction: column; gap: 6px; }
+/* Drive folder settings */
+.drive-current-folder {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+.drive-current-folder .drive-folder-id {
+  font-size: 11px;
+  color: var(--muted);
+  word-break: break-all;
+}
+.drive-current-folder a {
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: none;
+}
+.drive-current-folder a:hover { text-decoration: underline; }
+.drive-dlg-note {
+  font-size: 12px;
+  color: var(--muted);
+  min-height: 1.4em;
+  word-break: break-all;
+}
+.drive-dlg-note.ok { color: var(--accent); }
+.drive-dlg-note.err { color: var(--danger); }
+.drive-guide { display: flex; flex-direction: column; gap: 14px; }
+.drive-guide-step { display: flex; flex-direction: column; gap: 7px; }
+.drive-step-label { font-size: 13px; color: var(--fg); display: flex; gap: 8px; align-items: baseline; }
+.drive-step-num { color: var(--accent); font-weight: 600; font-size: 15px; flex-shrink: 0; min-width: 1em; }
+.drive-step-hint { font-size: 11px; color: var(--muted); padding-left: 28px; margin-top: -4px; }
+.drive-open-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--accent);
+  text-decoration: none;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.drive-open-link:hover { border-color: var(--accent); }
+/* Help dialog */
+.help-modal { width: min(480px, 95vw); }
+.help-modal .pw-body { padding: 0; max-height: 70vh; overflow-y: auto; }
+.help-section { padding: 10px 16px 4px; font-size: 11px; color: var(--muted); letter-spacing: 0.05em; border-top: 1px solid var(--border); }
+.help-section:first-child { border-top: none; }
+.help-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.help-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.help-table tr:last-child td { border-bottom: none; }
+.help-table td:first-child { white-space: nowrap; font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: 12px; color: var(--accent); padding-right: 14px; width: 1%; }
 .empty {
   text-align: center;
   color: var(--muted);
   padding: 40px 20px;
   font-size: 13px;
 }
+.onboarding-card {
+  max-width: 420px;
+  margin: 40px auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.onboarding-title {
+  padding: 14px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+.onboarding-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.onboarding-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.onboarding-step-icon { font-size: 15px; flex-shrink: 0; width: 20px; text-align: center; color: var(--muted); }
+.onboarding-step-icon.done { color: var(--accent); }
+.onboarding-step-info { flex: 1; min-width: 0; }
+.onboarding-step-label { font-size: 13px; }
+.onboarding-step-val { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.onboarding-step-val.set { color: var(--accent); }
+.onboarding-step-btn { font-size: 12px; padding: 4px 10px; flex-shrink: 0; }
+.onboarding-cta {
+  width: 100%;
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  padding: 10px;
+  font-size: 14px;
+}
+.onboarding-cta:hover { opacity: 0.9; border-color: var(--accent); }
+.onboarding-cta:disabled { opacity: 0.5; }
+.onboarding-divider { border: none; border-top: 1px solid var(--border); margin: 0; }
+.onboarding-alt { font-size: 12px; color: var(--muted); display: flex; align-items: center; justify-content: space-between; }
 @media (max-width: 600px) {
   header h1 { font-size: 14px; }
   .label-full { display: none; }
@@ -392,9 +508,11 @@ main {
   <span id="status" class="badge hidden">offline</span>
   <span class="spacer"></span>
   <button id="btn-search" title="検索 (Ctrl+F)">🔍</button>
-  <button id="btn-new" title="新規 (Ctrl+D)">＋<span class="label-full">新規</span></button>
+  <button id="btn-new" title="新規 (Ctrl+D / N / M)">＋<span class="label-full">新規</span></button>
   <button id="btn-lock" class="hidden" title="ロック / 解除">🔐</button>
+  <button id="btn-drive-dirty" class="hidden" title="Drive に未保存の変更があります (Ctrl+Shift+D)">☁</button>
   <button id="btn-settings" title="設定">⚙</button>
+  <button id="btn-help" title="ヘルプ">?</button>
   <button id="btn-menu" title="メニュー">⋯</button>
 </header>
 <div class="menu" id="menu">
@@ -481,6 +599,29 @@ main {
       <label class="settings-label">セキュリティ</label>
       <div class="security-btns" id="security-btns"></div>
     </div>
+    <div class="settings-row">
+      <label class="settings-label">Google Drive 連携</label>
+      <div id="drive-folder-current" class="drive-current-folder hidden">
+        <span class="drive-folder-id" id="drive-folder-id-display"></span>
+        <a id="drive-folder-open-link" href="#" target="_blank" rel="noopener">📁 フォルダをブラウザで開く</a>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button id="btn-set-drive-folder">📁 保存先フォルダを設定...</button>
+        <button id="btn-clear-drive-folder" class="hidden">✕ クリア</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label class="settings-label">Drive ファイル直接指定</label>
+      <div class="settings-label" style="font-size:11px">アプリ外で作成した .txt を使う場合に設定（drive スコープに昇格・再認証が発生）</div>
+      <div id="drive-file-current" class="drive-current-folder hidden">
+        <span class="drive-folder-id" id="drive-file-id-display"></span>
+        <a id="drive-file-open-link" href="#" target="_blank" rel="noopener">📄 ファイルをブラウザで開く</a>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button id="btn-set-drive-file">📄 Drive ファイルを指定...</button>
+        <button id="btn-clear-drive-file" class="hidden">✕ クリア</button>
+      </div>
+    </div>
   </div>
 </div>
 <div class="search-bar hidden" id="search-bar">
@@ -503,6 +644,99 @@ main {
     </div>
   </div>
 </div>
+<div class="pw-overlay hidden" id="drive-folder-overlay">
+  <div class="pw-modal">
+    <div class="pw-header">📁 保存先フォルダを設定</div>
+    <div class="pw-body">
+      <div class="drive-guide">
+        <div class="drive-guide-step">
+          <div class="drive-step-label"><span class="drive-step-num">1</span>Google Drive でフォルダを開く</div>
+          <a href="https://drive.google.com/drive/" target="_blank" rel="noopener" class="drive-open-link">🔗 Google Drive を開く ↗</a>
+        </div>
+        <div class="drive-guide-step">
+          <div class="drive-step-label"><span class="drive-step-num">2</span>目的のフォルダを開き、アドレスバーの URL をコピー</div>
+          <div class="drive-step-hint">スマホで Drive アプリが開く場合は、フォルダ横の ⋮ メニュー →「リンクをコピー」</div>
+        </div>
+        <div class="drive-guide-step">
+          <div class="drive-step-label"><span class="drive-step-num">3</span>URL をここに貼り付け</div>
+          <input type="text" id="drive-folder-url-input"
+                 placeholder="https://drive.google.com/drive/folders/..."
+                 autocomplete="off" spellcheck="false">
+          <div id="drive-folder-dlg-note" class="drive-dlg-note"></div>
+        </div>
+      </div>
+    </div>
+    <div class="pw-footer">
+      <button id="drive-folder-cancel">キャンセル</button>
+      <button id="drive-folder-ok" class="pw-ok" disabled>設定</button>
+    </div>
+  </div>
+</div>
+<div class="pw-overlay hidden" id="drive-file-overlay">
+  <div class="pw-modal">
+    <div class="pw-header">📄 Drive ファイルを直接指定</div>
+    <div class="pw-body">
+      <div class="drive-dlg-note" style="margin-bottom:4px">アプリ外で作成した .txt ファイルを使う場合に設定します。設定後は <strong>drive</strong> スコープが必要なため再認証が発生します。</div>
+      <div class="drive-guide">
+        <div class="drive-guide-step">
+          <div class="drive-step-label"><span class="drive-step-num">1</span>Google Drive でファイルを開く</div>
+          <a href="https://drive.google.com/drive/" target="_blank" rel="noopener" class="drive-open-link">🔗 Google Drive を開く ↗</a>
+        </div>
+        <div class="drive-guide-step">
+          <div class="drive-step-label"><span class="drive-step-num">2</span>ファイルを右クリック →「アプリで開く」→「新しいタブで開く」</div>
+          <div class="drive-step-hint">ダブルクリックのプレビューでは URL が変わりません</div>
+          <div class="drive-step-hint">スマホで Drive アプリが開く場合は、ファイル横の ⋮ メニュー →「リンクをコピー」</div>
+        </div>
+        <div class="drive-guide-step">
+          <div class="drive-step-label"><span class="drive-step-num">3</span>URL をここに貼り付け</div>
+          <input type="text" id="drive-file-url-input"
+                 placeholder="https://drive.google.com/file/d/..."
+                 autocomplete="off" spellcheck="false">
+          <div id="drive-file-dlg-note" class="drive-dlg-note"></div>
+        </div>
+      </div>
+    </div>
+    <div class="pw-footer">
+      <button id="drive-file-cancel">キャンセル</button>
+      <button id="drive-file-ok" class="pw-ok" disabled>設定</button>
+    </div>
+  </div>
+</div>
+<div class="pw-overlay hidden" id="help-overlay">
+  <div class="pw-modal help-modal">
+    <div class="pw-header">？ 操作ガイド</div>
+    <div class="pw-body">
+      <div class="help-section">キーボードショートカット</div>
+      <table class="help-table">
+        <tr><td>Ctrl+D / N / M</td><td>新規エントリを先頭に追加</td></tr>
+        <tr><td>Ctrl+S</td><td>即時保存（localStorage）</td></tr>
+        <tr><td>Ctrl+Shift+S</td><td>.txt ファイルをダウンロード</td></tr>
+        <tr><td>Ctrl+Shift+D</td><td>Google Drive に保存</td></tr>
+        <tr><td>Ctrl+P</td><td>フォーカス中エントリの public / private 切替</td></tr>
+        <tr><td>Ctrl+F</td><td>検索バーを開く</td></tr>
+        <tr><td>Esc</td><td>検索バーを閉じる</td></tr>
+      </table>
+      <div class="help-section">基本操作</div>
+      <table class="help-table">
+        <tr><td>タイムスタンプ</td><td>エントリ上部の日時をクリックで編集（秒単位まで）</td></tr>
+        <tr><td>public / private</td><td>エントリ上部のボタンまたは Ctrl+P で切替</td></tr>
+        <tr><td>削除</td><td>エントリ上部の ✕ ボタン（確認なし）</td></tr>
+        <tr><td>自動削除</td><td>本文を空にしてフォーカスを外すと自動削除</td></tr>
+        <tr><td>検索</td><td>本文の部分一致 / YYYY/MM/DD の前方一致</td></tr>
+        <tr><td>インポート</td><td>⋯ メニュー → ファイルから読込（現在データとマージ）</td></tr>
+      </table>
+      <div class="help-section">パスワード保護</div>
+      <table class="help-table">
+        <tr><td>設定</td><td>⚙ → セキュリティ → パスワードを設定</td></tr>
+        <tr><td>解除</td><td>ヘッダの 🔐 ボタンでパスワード入力</td></tr>
+        <tr><td>ロック</td><td>ヘッダの 🔓 ボタン（ページ再読み込みでも自動ロック）</td></tr>
+      </table>
+    </div>
+    <div class="pw-footer">
+      <button id="btn-help-close" class="pw-ok">閉じる</button>
+    </div>
+  </div>
+</div>
 <script src="./config.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
@@ -518,6 +752,8 @@ let state = loadLocal() || {
   updatedAt: null,
   driveFileId: null,
   driveFileName: DRIVE_FILENAME,
+  driveFolderId: DRIVE_FOLDER_ID,
+  drivePinnedFileId: null,
   driveModifiedTime: null,
   entries: []
 };
@@ -527,10 +763,19 @@ if (state.driveFileName !== DRIVE_FILENAME) {
   state.driveFileId      = null;
   state.driveModifiedTime = null;
 }
-// config.js で直接ファイル ID が指定されていれば優先適用
+// 既存 state に driveFolderId がなければ config.js の値で初期化
+if (state.driveFolderId === undefined) {
+  state.driveFolderId = DRIVE_FOLDER_ID;
+}
+// config.js で直接ファイル ID が指定されていれば優先適用（UI 設定の初期値として使用）
 const CONFIG_FILE_ID = window.EDJIKI_DRIVE_FILE_ID || null;
-if (CONFIG_FILE_ID && state.driveFileId !== CONFIG_FILE_ID) {
-  state.driveFileId      = CONFIG_FILE_ID;
+// 既存 state に drivePinnedFileId がなければ config.js の値で初期化
+if (state.drivePinnedFileId === undefined) {
+  state.drivePinnedFileId = CONFIG_FILE_ID;
+}
+// ピン留めされたファイル ID を driveFileId に適用
+if (state.drivePinnedFileId && state.driveFileId !== state.drivePinnedFileId) {
+  state.driveFileId      = state.drivePinnedFileId;
   state.driveModifiedTime = null;
 }
 // enc フィールドを持つエントリ（暗号化済 private）に text:null を付与して正規化
@@ -819,16 +1064,107 @@ function render() {
     shown++;
   }
   if (shown === 0) {
-    const d = document.createElement("div");
-    d.className = "empty";
-    d.textContent = q ? "一致するエントリがありません" : "右下の ＋ で新規エントリを作成";
-    $entries.appendChild(d);
+    $entries.appendChild(q ? (() => {
+      const d = document.createElement("div");
+      d.className = "empty";
+      d.textContent = "一致するエントリがありません";
+      return d;
+    })() : buildOnboardingCard());
   }
   // resize after append, then restore scroll
   requestAnimationFrame(() => {
     $entries.querySelectorAll("textarea").forEach(autoResize);
     window.scrollTo(0, sy);
   });
+}
+function buildOnboardingCard() {
+  if (!window.EDJIKI_CLIENT_ID) {
+    const d = document.createElement("div");
+    d.className = "empty";
+    d.textContent = "右下の ＋ で新規エントリを作成";
+    return d;
+  }
+  const card = document.createElement("div");
+  card.className = "onboarding-card";
+
+  const title = document.createElement("div");
+  title.className = "onboarding-title";
+  title.textContent = "Google Drive からデータを読み込む";
+  card.appendChild(title);
+
+  const body = document.createElement("div");
+  body.className = "onboarding-body";
+  card.appendChild(body);
+
+  const hasFolderId = !!state.driveFolderId;
+  body.appendChild(makeOnboardingStep(
+    hasFolderId,
+    "保存先フォルダ",
+    hasFolderId ? state.driveFolderId : "未設定（マイドライブ直下）",
+    hasFolderId ? "変更" : "設定",
+    () => showDriveFolderDialog()
+  ));
+
+  const hasFileId = !!state.drivePinnedFileId;
+  body.appendChild(makeOnboardingStep(
+    hasFileId,
+    "ファイル直接指定",
+    hasFileId ? state.drivePinnedFileId : "任意",
+    hasFileId ? "変更" : "指定",
+    () => showDriveFileDialog()
+  ));
+
+  const loadBtn = document.createElement("button");
+  loadBtn.className = "onboarding-cta";
+  loadBtn.textContent = "☁ Drive から読み込む";
+  loadBtn.addEventListener("click", () => {
+    loadBtn.disabled = true;
+    loadBtn.textContent = "読み込み中...";
+    driveLoad();
+  });
+  body.appendChild(loadBtn);
+
+  const hr = document.createElement("hr");
+  hr.className = "onboarding-divider";
+  body.appendChild(hr);
+
+  const alt = document.createElement("div");
+  alt.className = "onboarding-alt";
+  const altLabel = document.createElement("span");
+  altLabel.textContent = "Drive を使わずにすぐ始める";
+  const altBtn = document.createElement("button");
+  altBtn.textContent = "＋ 新規エントリ";
+  altBtn.addEventListener("click", newEntry);
+  alt.appendChild(altLabel);
+  alt.appendChild(altBtn);
+  body.appendChild(alt);
+
+  return card;
+}
+function makeOnboardingStep(isDone, label, value, btnLabel, onClick) {
+  const row = document.createElement("div");
+  row.className = "onboarding-step";
+  const icon = document.createElement("span");
+  icon.className = "onboarding-step-icon" + (isDone ? " done" : "");
+  icon.textContent = isDone ? "✓" : "○";
+  row.appendChild(icon);
+  const info = document.createElement("div");
+  info.className = "onboarding-step-info";
+  const labelEl = document.createElement("div");
+  labelEl.className = "onboarding-step-label";
+  labelEl.textContent = label;
+  const valEl = document.createElement("div");
+  valEl.className = "onboarding-step-val" + (isDone ? " set" : "");
+  valEl.textContent = value;
+  info.appendChild(labelEl);
+  info.appendChild(valEl);
+  row.appendChild(info);
+  const btn = document.createElement("button");
+  btn.className = "onboarding-step-btn";
+  btn.textContent = btnLabel;
+  btn.addEventListener("click", onClick);
+  row.appendChild(btn);
+  return row;
 }
 function renderEntry(e) {
   const div = document.createElement("div");
@@ -857,6 +1193,7 @@ function renderEntry(e) {
   privBtn.addEventListener("click", () => {
     if (e.text === null) return;
     e.private = !e.private;
+    driveDirty = true; updateDriveDirtyUI();
     saveLocal(true);
     render();
   });
@@ -868,6 +1205,7 @@ function renderEntry(e) {
   delBtn.title = "削除";
   delBtn.addEventListener("click", () => {
     state.entries = state.entries.filter(x => x.id !== e.id);
+    driveDirty = true; updateDriveDirtyUI();
     saveLocal(true);
     render();
   });
@@ -891,6 +1229,7 @@ function renderEntry(e) {
   ta.addEventListener("input", () => {
     e.text = ta.value;
     autoResize(ta);
+    driveDirty = true; updateDriveDirtyUI();
     saveLocal();
   });
   ta.addEventListener("blur", () => {
@@ -930,6 +1269,7 @@ function editTime(e, span) {
     const m = input.value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
     if (m) {
       e.time = isoFromParts(m[1], m[2], m[3], m[4], m[5], m[6] || "00");
+      driveDirty = true; updateDriveDirtyUI();
       saveLocal(true);
     }
     render();
@@ -945,6 +1285,7 @@ function editTime(e, span) {
 function newEntry() {
   const e = { id: newId(), time: nowIso(), private: false, text: "" };
   state.entries.unshift(e);
+  driveDirty = true; updateDriveDirtyUI();
   saveLocal(true);
   render();
   const node = $entries.querySelector(`[data-id="${e.id}"] textarea`);
@@ -982,6 +1323,7 @@ document.getElementById("file-input").addEventListener("change", async (ev) => {
     const txt = await f.text();
     const imported = parseTxt(txt);
     state.entries = mergeEntries(state.entries, imported);
+    driveDirty = true; updateDriveDirtyUI();
     saveLocal(true);
     render();
     toast(`${imported.length} 件読込 (マージ済)`);
@@ -1009,6 +1351,15 @@ function toast(msg) {
 let tokenClient = null;
 let accessToken = null;
 let pendingAction = null;
+let driveDirty = false;
+function updateDriveDirtyUI() {
+  const btn = document.getElementById("btn-drive-dirty");
+  if (window.EDJIKI_CLIENT_ID && driveDirty) {
+    btn.classList.remove("hidden");
+  } else {
+    btn.classList.add("hidden");
+  }
+}
 
 function initDrive() {
   if (tokenClient) return true;
@@ -1016,7 +1367,7 @@ function initDrive() {
   if (!window.EDJIKI_CLIENT_ID) return false;
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: window.EDJIKI_CLIENT_ID,
-    scope: CONFIG_FILE_ID
+    scope: (state.drivePinnedFileId || CONFIG_FILE_ID)
       ? "https://www.googleapis.com/auth/drive"
       : "https://www.googleapis.com/auth/drive.file",
     callback: (resp) => {
@@ -1054,7 +1405,7 @@ async function driveDownload(id) {
 }
 async function driveFindByName() {
   let q = `name='${DRIVE_FILENAME}' and trashed=false`;
-  if (DRIVE_FOLDER_ID) q += ` and '${DRIVE_FOLDER_ID}' in parents`;
+  if (state.driveFolderId) q += ` and '${state.driveFolderId}' in parents`;
   const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`, {
     headers: { Authorization: `Bearer ${accessToken}` }
   });
@@ -1064,8 +1415,11 @@ async function driveFindByName() {
 }
 async function driveUpload() {
   const content = serializeTxt(state);
-  const metadata = { name: DRIVE_FILENAME, mimeType: "text/plain" };
-  if (!state.driveFileId && DRIVE_FOLDER_ID) metadata.parents = [DRIVE_FOLDER_ID];
+  // 新規作成時のみ name を指定（既存ファイル更新時に name を送るとリネームされてしまう）
+  const metadata = state.driveFileId
+    ? { mimeType: "text/plain" }
+    : { name: DRIVE_FILENAME, mimeType: "text/plain" };
+  if (!state.driveFileId && state.driveFolderId) metadata.parents = [state.driveFolderId];
   const boundary = "edjiki" + Math.random().toString(36).slice(2);
   const body =
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
@@ -1117,6 +1471,7 @@ function driveSave() {
       const file = await driveUpload();
       state.driveFileId = file.id;
       state.driveModifiedTime = file.modifiedTime;
+      driveDirty = false; updateDriveDirtyUI();
       saveLocal(true);
       toast("Drive に保存しました");
     } catch (e) {
@@ -1144,11 +1499,13 @@ function driveLoad() {
       state.driveFileId = id;
       state.driveModifiedTime = meta.modifiedTime;
       state.entries = mergeEntries(state.entries, imported);
+      driveDirty = false; updateDriveDirtyUI();
       saveLocal(true);
       render();
       toast(`Drive から ${imported.length} 件読込 (マージ済)`);
     } catch (e) {
       toast("Drive 読込失敗: " + e.message);
+      render();
     }
   });
 }
@@ -1163,6 +1520,7 @@ function driveSignOut() {
 // ========== UI wire ==========
 document.getElementById("btn-new").addEventListener("click", newEntry);
 document.getElementById("fab").addEventListener("click", newEntry);
+document.getElementById("btn-drive-dirty").addEventListener("click", driveSave);
 document.getElementById("btn-lock").addEventListener("click", async () => {
   if (!cryptoKey) {
     showPasswordModal("unlock");
@@ -1212,7 +1570,7 @@ $search.addEventListener("input", () => {
 // Shortcuts
 document.addEventListener("keydown", (e) => {
   const k = e.key.toLowerCase();
-  if (e.ctrlKey && !e.shiftKey && k === "d") { e.preventDefault(); newEntry(); }
+  if (e.ctrlKey && !e.shiftKey && (k === "d" || k === "n" || k === "m")) { e.preventDefault(); newEntry(); }
   else if (e.ctrlKey && !e.shiftKey && k === "s") { e.preventDefault(); saveLocal(true); toast("保存済"); }
   else if (e.ctrlKey && e.shiftKey && k === "s") { e.preventDefault(); download(); }
   else if (e.ctrlKey && e.shiftKey && k === "d") { e.preventDefault(); driveSave(); }
@@ -1303,6 +1661,8 @@ function openSettings() {
   const radio = document.querySelector(`input[name="font-family"][value="${settings.fontKey}"]`);
   if (radio) radio.checked = true;
   updateSecurityUI();
+  updateDriveSettingsUI();
+  updateDriveFileUI();
   $settingsPanel.classList.add("open");
   $settingsOverlay.classList.add("open");
 }
@@ -1444,6 +1804,16 @@ function closeSettings() {
 }
 
 document.getElementById("btn-settings").addEventListener("click", openSettings);
+document.getElementById("btn-help").addEventListener("click", () => {
+  document.getElementById("help-overlay").classList.remove("hidden");
+});
+document.getElementById("btn-help-close").addEventListener("click", () => {
+  document.getElementById("help-overlay").classList.add("hidden");
+});
+document.getElementById("help-overlay").addEventListener("click", (e) => {
+  if (e.target === document.getElementById("help-overlay"))
+    document.getElementById("help-overlay").classList.add("hidden");
+});
 document.getElementById("btn-settings-close").addEventListener("click", closeSettings);
 $settingsOverlay.addEventListener("click", closeSettings);
 
@@ -1464,6 +1834,244 @@ document.querySelectorAll("input[name='font-family']").forEach(radio => {
       applySettings(); saveSettings(); resizeAll();
     }
   });
+});
+
+// ========== Drive Settings ==========
+function extractFolderIdFromUrl(input) {
+  const s = (input || "").trim();
+  if (!s) return null;
+  const m = s.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  if (m) return m[1];
+  // 生の ID（15文字以上の英数字・アンダースコア・ハイフン）
+  if (/^[a-zA-Z0-9_-]{15,}$/.test(s)) return s;
+  return null;
+}
+// マイドライブ直下を表す URL かどうか
+function isMyDriveUrl(input) {
+  return /drive\.google\.com\/drive\/my-drive/.test((input || "").trim());
+}
+// Drive のナビゲーション画面 URL かどうか（ファイル固有 URL でないもの）
+function isDriveNavigationUrl(input) {
+  return /drive\.google\.com\/drive\/(home|my-drive|recent|shared-with-me|starred|trash|search)/.test((input || "").trim());
+}
+function updateDriveSettingsUI() {
+  const fid    = state.driveFolderId;
+  const wrap   = document.getElementById("drive-folder-current");
+  const clrBtn = document.getElementById("btn-clear-drive-folder");
+  if (fid) {
+    document.getElementById("drive-folder-id-display").textContent = fid;
+    document.getElementById("drive-folder-open-link").href =
+      `https://drive.google.com/drive/folders/${fid}`;
+    wrap.classList.remove("hidden");
+    clrBtn.classList.remove("hidden");
+  } else {
+    wrap.classList.add("hidden");
+    clrBtn.classList.add("hidden");
+  }
+}
+function showDriveFolderDialog() {
+  const overlay = document.getElementById("drive-folder-overlay");
+  const input   = document.getElementById("drive-folder-url-input");
+  const note    = document.getElementById("drive-folder-dlg-note");
+  const okBtn   = document.getElementById("drive-folder-ok");
+
+  input.value   = "";
+  note.className = "drive-dlg-note";
+  note.textContent = state.driveFolderId
+    ? `現在のフォルダ ID: ${state.driveFolderId}`
+    : "未設定（マイドライブ直下に保存されます）";
+  okBtn.disabled = true;
+  overlay.classList.remove("hidden");
+  setTimeout(() => input.focus(), 30);
+
+  // 前回のリスナーをリセット
+  const newInput  = input.cloneNode(true);
+  input.parentNode.replaceChild(newInput, input);
+  const newOk = okBtn.cloneNode(true);
+  okBtn.parentNode.replaceChild(newOk, okBtn);
+  const newCancel = document.getElementById("drive-folder-cancel").cloneNode(true);
+  document.getElementById("drive-folder-cancel").parentNode
+    .replaceChild(newCancel, document.getElementById("drive-folder-cancel"));
+
+  document.getElementById("drive-folder-url-input").addEventListener("input", () => {
+    const val  = document.getElementById("drive-folder-url-input").value;
+    const fid  = extractFolderIdFromUrl(val);
+    const root = isMyDriveUrl(val);
+    const n    = document.getElementById("drive-folder-dlg-note");
+    const ok   = document.getElementById("drive-folder-ok");
+    if (!val.trim()) {
+      n.className = "drive-dlg-note";
+      n.textContent = state.driveFolderId
+        ? `現在のフォルダ ID: ${state.driveFolderId}`
+        : "未設定（マイドライブ直下に保存されます）";
+      ok.disabled = true;
+    } else if (root) {
+      n.className = "drive-dlg-note ok";
+      n.textContent = "マイドライブ直下（フォルダ未指定）";
+      ok.disabled = false;
+    } else if (fid) {
+      n.className = "drive-dlg-note ok";
+      n.textContent = `フォルダ ID: ${fid}`;
+      ok.disabled = false;
+    } else {
+      n.className = "drive-dlg-note err";
+      n.textContent = "Drive フォルダの URL を貼り付けてください";
+      ok.disabled = true;
+    }
+  });
+  document.getElementById("drive-folder-url-input").addEventListener("keydown", ev => {
+    if (ev.key === "Enter" && !document.getElementById("drive-folder-ok").disabled)
+      document.getElementById("drive-folder-ok").click();
+  });
+  document.getElementById("drive-folder-ok").addEventListener("click", () => {
+    const val  = document.getElementById("drive-folder-url-input").value;
+    const root = isMyDriveUrl(val);
+    const fid  = root ? null : extractFolderIdFromUrl(val);
+    if (!root && !fid) return;
+    if (fid !== state.driveFolderId) {
+      state.driveFolderId     = fid;
+      state.driveFileId       = null;
+      state.driveModifiedTime = null;
+      saveLocal(true);
+      toast(fid ? "保存先フォルダを設定しました" : "マイドライブ直下に設定しました");
+    }
+    overlay.classList.add("hidden");
+    updateDriveSettingsUI();
+    render();
+  });
+  document.getElementById("drive-folder-cancel").addEventListener("click", () => {
+    overlay.classList.add("hidden");
+  });
+}
+function extractFileIdFromUrl(input) {
+  const s = (input || "").trim();
+  if (!s) return null;
+  // /file/d/ID または /d/ID パターン
+  const m = s.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (m) return m[1];
+  // ?id=ID パターン
+  const m2 = s.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (m2) return m2[1];
+  // 生の ID（15文字以上）
+  if (/^[a-zA-Z0-9_-]{15,}$/.test(s)) return s;
+  return null;
+}
+function updateDriveFileUI() {
+  const fid    = state.drivePinnedFileId;
+  const wrap   = document.getElementById("drive-file-current");
+  const clrBtn = document.getElementById("btn-clear-drive-file");
+  if (fid) {
+    document.getElementById("drive-file-id-display").textContent = fid;
+    document.getElementById("drive-file-open-link").href =
+      `https://drive.google.com/file/d/${fid}/view`;
+    wrap.classList.remove("hidden");
+    clrBtn.classList.remove("hidden");
+  } else {
+    wrap.classList.add("hidden");
+    clrBtn.classList.add("hidden");
+  }
+}
+function showDriveFileDialog() {
+  const overlay = document.getElementById("drive-file-overlay");
+  const input   = document.getElementById("drive-file-url-input");
+  const note    = document.getElementById("drive-file-dlg-note");
+  const okBtn   = document.getElementById("drive-file-ok");
+
+  input.value    = "";
+  note.className = "drive-dlg-note";
+  note.textContent = state.drivePinnedFileId
+    ? `現在のファイル ID: ${state.drivePinnedFileId}`
+    : "未設定";
+  okBtn.disabled = true;
+  overlay.classList.remove("hidden");
+  setTimeout(() => input.focus(), 30);
+
+  const newInput  = input.cloneNode(true);
+  input.parentNode.replaceChild(newInput, input);
+  const newOk = okBtn.cloneNode(true);
+  okBtn.parentNode.replaceChild(newOk, okBtn);
+  const newCancel = document.getElementById("drive-file-cancel").cloneNode(true);
+  document.getElementById("drive-file-cancel").parentNode
+    .replaceChild(newCancel, document.getElementById("drive-file-cancel"));
+
+  document.getElementById("drive-file-url-input").addEventListener("input", () => {
+    const val = document.getElementById("drive-file-url-input").value;
+    const fid = extractFileIdFromUrl(val);
+    const n   = document.getElementById("drive-file-dlg-note");
+    const ok  = document.getElementById("drive-file-ok");
+    if (!val.trim()) {
+      n.className = "drive-dlg-note";
+      n.textContent = state.drivePinnedFileId
+        ? `現在のファイル ID: ${state.drivePinnedFileId}`
+        : "未設定";
+      ok.disabled = true;
+    } else if (fid) {
+      n.className = "drive-dlg-note ok";
+      n.textContent = `ファイル ID: ${fid}`;
+      ok.disabled = false;
+    } else if (isDriveNavigationUrl(val)) {
+      n.className = "drive-dlg-note err";
+      n.textContent = "Drive の画面 URL です。ファイルを右クリック →「アプリで開く」→「新しいタブで開く」で開いた URL を使ってください";
+      ok.disabled = true;
+    } else {
+      n.className = "drive-dlg-note err";
+      n.textContent = "Drive ファイルの URL を貼り付けてください";
+      ok.disabled = true;
+    }
+  });
+  document.getElementById("drive-file-url-input").addEventListener("keydown", ev => {
+    if (ev.key === "Enter" && !document.getElementById("drive-file-ok").disabled)
+      document.getElementById("drive-file-ok").click();
+  });
+  document.getElementById("drive-file-ok").addEventListener("click", () => {
+    const fid = extractFileIdFromUrl(
+      document.getElementById("drive-file-url-input").value);
+    if (!fid) return;
+    if (fid !== state.drivePinnedFileId) {
+      state.drivePinnedFileId = fid;
+      state.driveFileId       = fid;
+      state.driveModifiedTime = null;
+      tokenClient = null;  // スコープ変更のため再初期化
+      accessToken = null;
+      saveLocal(true);
+      toast("Drive ファイルを設定しました（次回操作時に再認証が必要です）");
+    }
+    overlay.classList.add("hidden");
+    updateDriveFileUI();
+    render();
+  });
+  document.getElementById("drive-file-cancel").addEventListener("click", () => {
+    overlay.classList.add("hidden");
+  });
+}
+document.getElementById("btn-set-drive-file").addEventListener("click", () => {
+  closeSettings();
+  showDriveFileDialog();
+});
+document.getElementById("btn-clear-drive-file").addEventListener("click", () => {
+  state.drivePinnedFileId = null;
+  state.driveFileId       = null;
+  state.driveModifiedTime = null;
+  tokenClient = null;  // スコープ縮小のため再初期化
+  accessToken = null;
+  saveLocal(true);
+  updateDriveFileUI();
+  render();
+  toast("Drive ファイル指定をクリアしました");
+});
+
+document.getElementById("btn-set-drive-folder").addEventListener("click", () => {
+  closeSettings();
+  showDriveFolderDialog();
+});
+document.getElementById("btn-clear-drive-folder").addEventListener("click", () => {
+  state.driveFolderId     = null;
+  state.driveFileId       = null;
+  state.driveModifiedTime = null;
+  saveLocal(true);
+  updateDriveSettingsUI();
+  render();
+  toast("保存先フォルダをクリアしました");
 });
 
 updateLockBtn();
