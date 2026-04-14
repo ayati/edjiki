@@ -38,13 +38,14 @@ window.EDJIKI_DRIVE_FOLDER_ID = "<folder-id>"; // initial save folder (overridab
 window.EDJIKI_DRIVE_FILE_ID   = "<file-id>";   // pin a pre-existing file; expands OAuth scope to `drive`
 ```
 
-Note: `EDJIKI_DRIVE_FOLDER_ID` and `EDJIKI_DRIVE_FILE_ID` can also be set at runtime via the settings panel (⚙ → Google Drive 連携 / Drive ファイル直接指定). Runtime values are stored in `state` and take precedence over config.js on subsequent loads.
+Note: `EDJIKI_DRIVE_FOLDER_ID` and `EDJIKI_DRIVE_FILE_ID` can also be set at runtime via the Drive settings panel (⋯ → Drive 設定). Runtime values are stored in `state` and take precedence over config.js on subsequent loads.
 
 ## Keyboard shortcuts (useful for manual testing)
 
 | Key | Action |
 |---|---|
 | `Ctrl+D` / `N` / `M` | New entry |
+| `Ctrl+Z` | Undo (up to 5 steps; no-op when a text field is focused) |
 | `Ctrl+S` | Flush save to localStorage |
 | `Ctrl+Shift+S` | Download `.txt` |
 | `Ctrl+Shift+D` | Save to Drive |
@@ -67,15 +68,19 @@ The script is organized into named sections separated by `// ========== Section 
 | **Normalize** | `normalizeText` strips empty lines and trailing whitespace — entries with empty normalized text are auto-deleted |
 | **Txt serialize/parse** | `serializeTxt` / `parseTxt` — text format is `YYYY/MM/DD HH:MM:SS body` (private entries use `-HH:MM:SS`) |
 | **Merge** | `mergeEntries(local, incoming)` — deduplicates by `id` first, then by `time+private+normalizedText` signature; winner on `id` collision is the entry with the later `time` |
+| **Crypto** | `deriveKey` (PBKDF2/SHA-256, 300k iterations), `encryptText`/`decryptText` (AES-GCM 256bit), `encryptEntry`/`decryptEntry`, `setupPassword`/`removePassword`/`changePassword`/`unlockWithPassword`/`lockEntries` |
+| **ID** | `newId()` — wraps `crypto.randomUUID()` with a manual UUID v4 fallback |
 | **Render** | Full DOM re-render on every state change; `autoResize` keeps textareas fitted to content; `buildOnboardingCard()` renders first-run guidance when `state.entries` is empty |
+| **Undo** | `undoStack` (max 5 snapshots of `state.entries`); `pushUndo()` — deep-clones entries onto the stack, skips if identical to top; `undo()` — pops and restores; triggered on textarea `focus` (first time per element) and `delBtn` click |
 | **Actions** | `newEntry` — creates entry, prepends to `state.entries`, sets `driveDirty`, calls `render()`, focuses textarea |
 | **Search** | `matchQuery` — partial text match OR date-prefix match against `fmtDisplay` output |
 | **Download / Import** | `download` (serializeTxt → Blob), `importFile` (parseTxt + mergeEntries) |
 | **Toast** | `toast(msg)` — creates `.toast` div, auto-removes after 3.5 s |
 | **Drive** | GSI token client; scope is `drive.file` normally, `drive` when `state.drivePinnedFileId` or `CONFIG_FILE_ID` is set; `driveSave` checks `modifiedTime` before upload and prompts merge on conflict; `driveLoad` merges remote into local; both blocked when locked; `driveDirty` flag + `updateDriveDirtyUI()` shows/hides the ☁ header button |
 | **UI wire** | Event listeners, keyboard shortcuts, online/offline banner, `beforeunload`/`visibilitychange` flush |
-| **Settings** | Font, font-size, line-height — stored separately in `localStorage["edjiki.settings"]`, applied via CSS custom properties on `<body>`; Drive folder/file dialogs (`showDriveFolderDialog`, `showDriveFileDialog`) update `state.driveFolderId` / `state.drivePinnedFileId` |
-| **Crypto** | `deriveKey` (PBKDF2/SHA-256, 300k iterations), `encryptText`/`decryptText` (AES-GCM 256bit), `encryptEntry`/`decryptEntry`, `setupPassword`/`removePassword`/`changePassword`/`unlockWithPassword`/`lockEntries` |
+| **Settings** | Color theme (7 presets: 自動/ダーク/ライト/セピア/さくら/ブルー/ノルド), font, font-size (12–24 px), line-height — stored separately in `localStorage["edjiki.settings"]`, applied via CSS custom properties on `<body>`; opened via ⚙ header button |
+| **Drive Settings** | `openDriveSettings` / `closeDriveSettings` — side panel opened from ⋯ menu; `showDriveFolderDialog` / `showDriveFileDialog` / `showArchiveFolderDialog` — parse Google Drive URLs to extract folder/file IDs, update `state.driveFolderId` / `state.drivePinnedFileId` / `state.archiveFolderId` |
+| **Archive** | `createZipBlob(files)` — pure-JS ZIP writer (CRC32 + `CompressionStream('deflate-raw')` with STORE fallback, no CDN); `archiveAndTruncate()` → `_executeArchive(stats)` — for each year: downloads existing `jkY.txt` from `state.archiveFolderId`, merges with new cut entries (ensuring no gaps from Jan 1), re-uploads `jkY.txt` + `jkY.zip` to archive folder, then removes successfully archived entries from state; locked entries skip archive but stay in current data; Drive upload uses generic `driveUploadToFolder` / `driveFindInFolder` helpers |
 
 ### State shape
 
@@ -95,6 +100,8 @@ The script is organized into named sections separated by `// ========== Section 
 ```
 
 Persisted to `localStorage["edjiki.data"]` as JSON.
+
+`state.archiveFolderId` — Drive folder ID for archive files (`jkYYYY.txt` / `.zip`). Separate from `driveFolderId`.
 
 **Entry shapes (in-memory vs. localStorage):**
 
@@ -122,7 +129,7 @@ Header regex: `^(\d{4})\/(\d{2})\/(\d{2}) (-?)(\d{2}):(\d{2}):(\d{2})(?: (.*))?$
 - `state.entries` is always kept time-descending; `sortEntries()` is called by `render()`.
 - `normalizeText` is called on `blur` of each textarea; an entry whose normalized text is empty is deleted from `state.entries` before the next save.
 - Drive conflict detection compares `meta.modifiedTime` (Drive) with `state.driveModifiedTime` (last known); a mismatch triggers a merge-and-upload confirmation dialog.
-- Settings (`edjiki.settings`) are independent of diary data — resetting `localStorage["edjiki.data"]` does not affect font/size preferences.
+- Settings (`edjiki.settings`) are independent of diary data — resetting `localStorage["edjiki.data"]` does not affect font/size/`daysToKeep` preferences.
 - The Google Drive token (`accessToken`) is in-memory only; it is never persisted to `localStorage`. `pendingAction` queues one Drive operation while awaiting token acquisition.
 - `cryptoKey` (a non-extractable `CryptoKey`) is in-memory only — never stored anywhere. Lost on page close.
 - Locked entries (`text === null`) are skipped by `serializeTxt`, `matchQuery`, and `Ctrl+P`. Drive operations require the app to be unlocked.

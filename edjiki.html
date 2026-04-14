@@ -314,6 +314,31 @@ main {
 }
 /* Security settings */
 .security-btns { display: flex; flex-direction: column; gap: 6px; }
+/* Archive */
+.archive-info {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: pre-line;
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+.archive-days-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+.archive-days-row input[type="number"] {
+  width: 68px;
+  padding: 4px 6px;
+  background: var(--card);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 13px;
+}
 /* Drive folder settings */
 .drive-current-folder {
   display: flex;
@@ -542,16 +567,19 @@ main {
   <button id="btn-lock" class="hidden" title="ロック / 解除">🔐</button>
   <button id="btn-drive-dirty" class="hidden" title="Drive に未保存の変更があります (Ctrl+Shift+D)">☁</button>
   <button id="btn-settings" title="設定">⚙</button>
-  <button id="btn-help" title="ヘルプ">?</button>
   <button id="btn-menu" title="メニュー">⋯</button>
 </header>
 <div class="menu" id="menu">
+  <button id="menu-btn-undo" data-act="undo" disabled>↩ 元に戻す</button>
+  <hr>
   <button data-act="download">💾 ダウンロード (.txt)</button>
   <button data-act="import">📂 ファイルから読込</button>
   <hr>
   <button data-act="drive-save">☁ Drive に保存</button>
   <button data-act="drive-load">☁ Drive から読込</button>
+  <button data-act="drive-settings">⚙ Drive 設定...</button>
   <hr>
+  <button data-act="help">❓ ヘルプ</button>
   <button data-act="signout">ログアウト (Drive)</button>
 </div>
 <div class="settings-overlay" id="settings-overlay"></div>
@@ -633,6 +661,15 @@ main {
       <label class="settings-label">セキュリティ</label>
       <div class="security-btns" id="security-btns"></div>
     </div>
+  </div>
+</div>
+<div class="settings-overlay" id="drive-settings-overlay"></div>
+<div class="settings-panel" id="drive-settings-panel">
+  <div class="settings-header">
+    <span>Drive 設定</span>
+    <button id="btn-drive-settings-close">✕</button>
+  </div>
+  <div class="settings-body">
     <div class="settings-row">
       <label class="settings-label">Google Drive 連携</label>
       <div id="drive-folder-current" class="drive-current-folder hidden">
@@ -643,6 +680,28 @@ main {
         <button id="btn-set-drive-folder">📁 保存先フォルダを設定...</button>
         <button id="btn-clear-drive-folder" class="hidden">✕ クリア</button>
       </div>
+    </div>
+    <div class="settings-row">
+      <label class="settings-label">アーカイブフォルダ (Drive)</label>
+      <div class="settings-label" style="font-size:11px">jkYYYY.txt / .zip を保存する専用フォルダ。Drive 連携が必要です。</div>
+      <div id="archive-folder-current" class="drive-current-folder hidden">
+        <span class="drive-folder-id" id="archive-folder-id-display"></span>
+        <a id="archive-folder-open-link" href="#" target="_blank" rel="noopener">📁 フォルダをブラウザで開く</a>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button id="btn-set-archive-folder">📁 アーカイブフォルダを設定...</button>
+        <button id="btn-clear-archive-folder" class="hidden">✕ クリア</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label class="settings-label">データ管理</label>
+      <div id="archive-info" class="archive-info"></div>
+      <div class="archive-days-row">
+        <span style="font-size:12px">保持日数:</span>
+        <input type="number" id="setting-days-to-keep" min="1" max="3650" step="1">
+        <span style="font-size:11px;color:var(--muted)">日以内を現行データに保持</span>
+      </div>
+      <button id="btn-archive" style="margin-top:8px">📦 アーカイブして切り捨て...</button>
     </div>
     <div class="settings-row">
       <label class="settings-label">Drive ファイル直接指定</label>
@@ -706,6 +765,31 @@ main {
     </div>
   </div>
 </div>
+<div class="pw-overlay hidden" id="archive-folder-overlay">
+  <div class="pw-modal">
+    <div class="pw-header">📁 アーカイブフォルダを設定</div>
+    <div class="pw-body">
+      <div class="drive-dlg-note" style="margin-bottom:4px">jkYYYY.txt と jkYYYY.zip を保存する専用フォルダを指定します。Drive で事前にフォルダを作成してください。</div>
+      <div class="drive-guide">
+        <div class="drive-guide-step">
+          <div class="drive-step-label"><span class="drive-step-num">1</span>Google Drive で専用フォルダを開く</div>
+          <a href="https://drive.google.com/drive/" target="_blank" rel="noopener" class="drive-open-link">🔗 Google Drive を開く ↗</a>
+        </div>
+        <div class="drive-guide-step">
+          <div class="drive-step-label"><span class="drive-step-num">2</span>フォルダの URL をここに貼り付け</div>
+          <input type="text" id="archive-folder-url-input"
+                 placeholder="https://drive.google.com/drive/folders/..."
+                 autocomplete="off" spellcheck="false">
+          <div id="archive-folder-dlg-note" class="drive-dlg-note"></div>
+        </div>
+      </div>
+    </div>
+    <div class="pw-footer">
+      <button id="archive-folder-cancel">キャンセル</button>
+      <button id="archive-folder-ok" class="pw-ok" disabled>設定</button>
+    </div>
+  </div>
+</div>
 <div class="pw-overlay hidden" id="drive-file-overlay">
   <div class="pw-modal">
     <div class="pw-header">📄 Drive ファイルを直接指定</div>
@@ -746,13 +830,13 @@ main {
         <tr><td>🔍</td><td>検索バーを開く</td></tr>
         <tr><td>🔐 / 🔓</td><td>パスワード解除 / ロック（パスワード設定時のみ表示）</td></tr>
         <tr><td>☁</td><td>Drive に未保存の変更あり → クリックで即時保存</td></tr>
-        <tr><td>⚙</td><td>設定パネルを開く（テーマ・フォント・Drive など）</td></tr>
-        <tr><td>?</td><td>このガイドを表示</td></tr>
-        <tr><td>⋯</td><td>メニュー（ダウンロード・インポート・Drive 操作）</td></tr>
+        <tr><td>⚙</td><td>設定パネルを開く（テーマ・フォント・セキュリティ）</td></tr>
+        <tr><td>⋯</td><td>メニュー（ダウンロード・インポート・Drive 操作・設定・ヘルプ）</td></tr>
       </table>
       <div class="help-section">キーボードショートカット</div>
       <table class="help-table">
         <tr><td>Ctrl+D / N / M</td><td>新規エントリを先頭に追加</td></tr>
+        <tr><td>Ctrl+Z</td><td>元に戻す（最大5ステップ。テキスト入力中は無効）</td></tr>
         <tr><td>Ctrl+S</td><td>即時保存（localStorage）</td></tr>
         <tr><td>Ctrl+Shift+S</td><td>.txt ファイルをダウンロード</td></tr>
         <tr><td>Ctrl+Shift+D</td><td>Google Drive に保存</td></tr>
@@ -780,15 +864,15 @@ main {
         <tr><td>保存</td><td>⋯ → Drive に保存 / Ctrl+Shift+D / ☁ ボタン</td></tr>
         <tr><td>読込</td><td>⋯ → Drive から読込（ローカルとマージ）</td></tr>
         <tr><td>競合時</td><td>Drive 側が更新済みなら確認ダイアログ → マージして保存</td></tr>
-        <tr><td>保存先変更</td><td>⚙ → Google Drive 連携 → フォルダを変更</td></tr>
-        <tr><td>ファイル直接指定</td><td>⚙ → Drive ファイル直接指定（他アプリ作成ファイルを使う場合。drive スコープに昇格）</td></tr>
+        <tr><td>保存先変更</td><td>⋯ → Drive 設定 → 保存先フォルダを設定</td></tr>
+        <tr><td>ファイル直接指定</td><td>⋯ → Drive 設定 → Drive ファイル直接指定（他アプリ作成ファイルを使う場合。drive スコープに昇格）</td></tr>
       </table>
       <div class="help-section">パスワード保護</div>
       <table class="help-table">
-        <tr><td>設定</td><td>⚙ → セキュリティ → パスワードを設定</td></tr>
+        <tr><td>設定</td><td>⚙ → パスワードを設定</td></tr>
         <tr><td>解除</td><td>ヘッダの 🔐 ボタンでパスワード入力</td></tr>
         <tr><td>ロック</td><td>ヘッダの 🔓 ボタン（ページ再読み込みでも自動ロック）</td></tr>
-        <tr><td>変更・削除</td><td>⚙ → セキュリティ</td></tr>
+        <tr><td>変更・削除</td><td>⚙ → パスワードを変更 / 削除</td></tr>
         <tr><td>注意</td><td>パスワードを忘れると private エントリは復元不可。Drive 保存（平文 .txt）を定期的に行うこと</td></tr>
       </table>
       <div class="help-section">設定（⚙）</div>
@@ -797,6 +881,13 @@ main {
         <tr><td>フォントサイズ</td><td>12〜24px をスライダーで調整</td></tr>
         <tr><td>行間</td><td>1.2〜2.0 をスライダーで調整</td></tr>
         <tr><td>フォント</td><td>ゴシック・明朝・等幅など 12 書体から選択</td></tr>
+      </table>
+      <div class="help-section">Drive 設定（⋯ → Drive 設定）</div>
+      <table class="help-table">
+        <tr><td>保存先フォルダ</td><td>Drive の保存先フォルダを URL で指定</td></tr>
+        <tr><td>アーカイブフォルダ</td><td>jkYYYY.txt / .zip を保存する専用フォルダを指定</td></tr>
+        <tr><td>データ管理</td><td>ストレージ使用量の確認・保持日数設定・アーカイブ実行</td></tr>
+        <tr><td>ファイル直接指定</td><td>アプリ外で作成した .txt を使う場合に設定（drive スコープに昇格）</td></tr>
       </table>
       <div class="help-section">データについて</div>
       <table class="help-table">
@@ -829,6 +920,7 @@ let state = loadLocal() || {
   driveFolderId: DRIVE_FOLDER_ID,
   drivePinnedFileId: null,
   driveModifiedTime: null,
+  archiveFolderId: null,
   entries: []
 };
 // config.js で保存先が変わっていたらドライブ参照をリセット
@@ -840,6 +932,9 @@ if (state.driveFileName !== DRIVE_FILENAME) {
 // 既存 state に driveFolderId がなければ config.js の値で初期化
 if (state.driveFolderId === undefined) {
   state.driveFolderId = DRIVE_FOLDER_ID;
+}
+if (state.archiveFolderId === undefined) {
+  state.archiveFolderId = null;
 }
 // config.js で直接ファイル ID が指定されていれば優先適用（UI 設定の初期値として使用）
 const CONFIG_FILE_ID = window.EDJIKI_DRIVE_FILE_ID || null;
@@ -878,6 +973,33 @@ function saveLocal(immediate) {
   };
   if (immediate) return run();
   saveTimer = setTimeout(run, 300);
+}
+
+// ========== Undo ==========
+const UNDO_MAX = 5;
+let undoStack = [];
+function pushUndo() {
+  const snap = state.entries.map(e => e.enc ? { ...e, enc: { ...e.enc } } : { ...e });
+  // 直前のスナップショットと同一なら積まない（クリックするだけで消費しない）
+  if (undoStack.length > 0 && JSON.stringify(undoStack[undoStack.length - 1]) === JSON.stringify(snap)) return;
+  undoStack.push(snap);
+  if (undoStack.length > UNDO_MAX) undoStack.shift();
+  updateUndoUI();
+}
+function undo() {
+  if (undoStack.length === 0) { toast("元に戻す履歴がありません"); return; }
+  state.entries = undoStack.pop();
+  driveDirty = true; updateDriveDirtyUI();
+  saveLocal(true);
+  render();
+  updateUndoUI();
+  toast("元に戻しました");
+}
+function updateUndoUI() {
+  const btn = document.getElementById("menu-btn-undo");
+  if (!btn) return;
+  btn.disabled = undoStack.length === 0;
+  btn.textContent = undoStack.length > 0 ? `↩ 元に戻す (${undoStack.length})` : "↩ 元に戻す";
 }
 
 // ========== Time utils ==========
@@ -1287,6 +1409,7 @@ function renderEntry(e) {
   delBtn.textContent = "✕";
   delBtn.title = "削除";
   delBtn.addEventListener("click", () => {
+    pushUndo();
     state.entries = state.entries.filter(x => x.id !== e.id);
     driveDirty = true; updateDriveDirtyUI();
     saveLocal(true);
@@ -1311,6 +1434,12 @@ function renderEntry(e) {
   ta.className = "entry-body";
   ta.value = e.text;
   ta.spellcheck = false;
+  ta.addEventListener("focus", () => {
+    if (!ta._undoSaved) {
+      ta._undoSaved = true;
+      pushUndo();
+    }
+  });
   ta.addEventListener("input", () => {
     e.text = ta.value;
     autoResize(ta);
@@ -1606,6 +1735,40 @@ function driveLoad() {
     }
   });
 }
+// アーカイブ用汎用ヘルパー
+// 指定フォルダ内でファイル名を検索し、見つかれば file ID を返す（なければ null）
+async function driveFindInFolder(filename, folderId) {
+  const q = `name='${filename}' and '${folderId}' in parents and trashed=false`;
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)&pageSize=1`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!res.ok) throw new Error(`Drive 検索失敗 ${res.status}`);
+  const data = await res.json();
+  return data.files?.[0]?.id ?? null;
+}
+// 指定フォルダへファイルをアップロード（テキスト・バイナリ共用、FormData 方式）
+// existingId が null なら新規作成、あれば上書き
+async function driveUploadToFolder(existingId, name, content, mimeType, folderId) {
+  const metadata = existingId ? {} : { name, parents: [folderId] };
+  const fileBlob = content instanceof Blob
+    ? content
+    : new Blob([content], { type: mimeType + ";charset=UTF-8" });
+  const form = new FormData();
+  form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+  form.append("file", fileBlob);
+  const url = existingId
+    ? `https://www.googleapis.com/upload/drive/v3/files/${existingId}?uploadType=multipart&fields=id`
+    : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id`;
+  const res = await fetch(url, {
+    method: existingId ? "PATCH" : "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: form,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 function driveSignOut() {
   if (accessToken && window.google && google.accounts && google.accounts.oauth2) {
     google.accounts.oauth2.revoke(accessToken, () => {});
@@ -1640,10 +1803,13 @@ document.getElementById("menu").addEventListener("click", (e) => {
   if (!btn) return;
   const act = btn.dataset.act;
   document.getElementById("menu").classList.remove("open");
-  if (act === "download") download();
+  if (act === "undo") undo();
+  else if (act === "download") download();
   else if (act === "import") importFile();
   else if (act === "drive-save") driveSave();
   else if (act === "drive-load") driveLoad();
+  else if (act === "drive-settings") openDriveSettings();
+  else if (act === "help") document.getElementById("help-overlay").classList.remove("hidden");
   else if (act === "signout") driveSignOut();
 });
 
@@ -1667,7 +1833,14 @@ $search.addEventListener("input", () => {
 // Shortcuts
 document.addEventListener("keydown", (e) => {
   const k = e.key.toLowerCase();
-  if (e.ctrlKey && !e.shiftKey && (k === "d" || k === "n" || k === "m")) { e.preventDefault(); newEntry(); }
+  if (e.ctrlKey && !e.shiftKey && k === "z") {
+    const active = document.activeElement;
+    if (!active || (active.tagName !== "TEXTAREA" && active.tagName !== "INPUT")) {
+      e.preventDefault(); undo();
+    }
+    // テキスト入力中は native undo を優先
+  }
+  else if (e.ctrlKey && !e.shiftKey && (k === "d" || k === "n" || k === "m")) { e.preventDefault(); newEntry(); }
   else if (e.ctrlKey && !e.shiftKey && k === "s") { e.preventDefault(); saveLocal(true); toast("保存済"); }
   else if (e.ctrlKey && e.shiftKey && k === "s") { e.preventDefault(); download(); }
   else if (e.ctrlKey && e.shiftKey && k === "d") { e.preventDefault(); driveSave(); }
@@ -1729,7 +1902,7 @@ const THEMES = [
   { key: "blue-water", label: "ブルー",  bg:"#0d1b2a", fg:"#d0e8f8", muted:"#5a8aaa", accent:"#4fc3f7", border:"#1e3a4f", card:"#122537", private:"#ff9c70", danger:"#ef5350", scheme:"dark"  },
   { key: "nord",       label: "ノルド",  bg:"#2e3440", fg:"#eceff4", muted:"#7b8fa8", accent:"#88c0d0", border:"#434c5e", card:"#3b4252", private:"#ebcb8b", danger:"#bf616a", scheme:"dark"  },
 ];
-const SETTINGS_DEFAULTS = { fontSize: 16, lineHeight: 1.6, fontKey: "biz-ud", theme: "auto" };
+const SETTINGS_DEFAULTS = { fontSize: 16, lineHeight: 1.6, fontKey: "biz-ud", theme: "auto", daysToKeep: 60 };
 let settings = (() => {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -1810,8 +1983,6 @@ function openSettings() {
   if (radio) radio.checked = true;
   renderThemeOptions();
   updateSecurityUI();
-  updateDriveSettingsUI();
-  updateDriveFileUI();
   $settingsPanel.classList.add("open");
   $settingsOverlay.classList.add("open");
 }
@@ -1953,9 +2124,6 @@ function closeSettings() {
 }
 
 document.getElementById("btn-settings").addEventListener("click", openSettings);
-document.getElementById("btn-help").addEventListener("click", () => {
-  document.getElementById("help-overlay").classList.remove("hidden");
-});
 document.getElementById("btn-help-close").addEventListener("click", () => {
   document.getElementById("help-overlay").classList.add("hidden");
 });
@@ -1965,6 +2133,23 @@ document.getElementById("help-overlay").addEventListener("click", (e) => {
 });
 document.getElementById("btn-settings-close").addEventListener("click", closeSettings);
 $settingsOverlay.addEventListener("click", closeSettings);
+
+const $driveSettingsPanel   = document.getElementById("drive-settings-panel");
+const $driveSettingsOverlay = document.getElementById("drive-settings-overlay");
+function openDriveSettings() {
+  updateDriveSettingsUI();
+  updateDriveFileUI();
+  updateArchiveFolderUI();
+  updateArchiveUI();
+  $driveSettingsPanel.classList.add("open");
+  $driveSettingsOverlay.classList.add("open");
+}
+function closeDriveSettings() {
+  $driveSettingsPanel.classList.remove("open");
+  $driveSettingsOverlay.classList.remove("open");
+}
+document.getElementById("btn-drive-settings-close").addEventListener("click", closeDriveSettings);
+$driveSettingsOverlay.addEventListener("click", closeDriveSettings);
 
 $fontSizeSlider.addEventListener("input", () => {
   settings.fontSize = Number($fontSizeSlider.value);
@@ -2197,8 +2382,97 @@ function showDriveFileDialog() {
     overlay.classList.add("hidden");
   });
 }
+function updateArchiveFolderUI() {
+  const fid    = state.archiveFolderId;
+  const wrap   = document.getElementById("archive-folder-current");
+  const clrBtn = document.getElementById("btn-clear-archive-folder");
+  if (fid) {
+    document.getElementById("archive-folder-id-display").textContent = fid;
+    document.getElementById("archive-folder-open-link").href =
+      `https://drive.google.com/drive/folders/${fid}`;
+    wrap.classList.remove("hidden");
+    clrBtn.classList.remove("hidden");
+  } else {
+    wrap.classList.add("hidden");
+    clrBtn.classList.add("hidden");
+  }
+}
+function showArchiveFolderDialog() {
+  const overlay = document.getElementById("archive-folder-overlay");
+  const input   = document.getElementById("archive-folder-url-input");
+  const note    = document.getElementById("archive-folder-dlg-note");
+  const okBtn   = document.getElementById("archive-folder-ok");
+
+  input.value   = "";
+  note.className = "drive-dlg-note";
+  note.textContent = state.archiveFolderId
+    ? `現在のフォルダ ID: ${state.archiveFolderId}`
+    : "未設定";
+  okBtn.disabled = true;
+  overlay.classList.remove("hidden");
+  setTimeout(() => input.focus(), 30);
+
+  const newInput  = input.cloneNode(true);
+  input.parentNode.replaceChild(newInput, input);
+  const newOk = okBtn.cloneNode(true);
+  okBtn.parentNode.replaceChild(newOk, okBtn);
+  const newCancel = document.getElementById("archive-folder-cancel").cloneNode(true);
+  document.getElementById("archive-folder-cancel").parentNode
+    .replaceChild(newCancel, document.getElementById("archive-folder-cancel"));
+
+  document.getElementById("archive-folder-url-input").addEventListener("input", () => {
+    const val  = document.getElementById("archive-folder-url-input").value;
+    const fid  = extractFolderIdFromUrl(val);
+    const n    = document.getElementById("archive-folder-dlg-note");
+    const ok   = document.getElementById("archive-folder-ok");
+    if (!val.trim()) {
+      n.className = "drive-dlg-note";
+      n.textContent = state.archiveFolderId
+        ? `現在のフォルダ ID: ${state.archiveFolderId}`
+        : "未設定";
+      ok.disabled = true;
+    } else if (fid) {
+      n.className = "drive-dlg-note ok";
+      n.textContent = `フォルダ ID: ${fid}`;
+      ok.disabled = false;
+    } else {
+      n.className = "drive-dlg-note err";
+      n.textContent = "Drive フォルダの URL を貼り付けてください";
+      ok.disabled = true;
+    }
+  });
+  document.getElementById("archive-folder-url-input").addEventListener("keydown", ev => {
+    if (ev.key === "Enter" && !document.getElementById("archive-folder-ok").disabled)
+      document.getElementById("archive-folder-ok").click();
+  });
+  document.getElementById("archive-folder-ok").addEventListener("click", () => {
+    const fid = extractFolderIdFromUrl(document.getElementById("archive-folder-url-input").value);
+    if (!fid) return;
+    state.archiveFolderId = fid;
+    saveLocal(true);
+    toast("アーカイブフォルダを設定しました");
+    overlay.classList.add("hidden");
+    updateArchiveFolderUI();
+    updateArchiveUI();
+  });
+  document.getElementById("archive-folder-cancel").addEventListener("click", () => {
+    overlay.classList.add("hidden");
+  });
+}
+document.getElementById("btn-set-archive-folder").addEventListener("click", () => {
+  closeDriveSettings();
+  showArchiveFolderDialog();
+});
+document.getElementById("btn-clear-archive-folder").addEventListener("click", () => {
+  state.archiveFolderId = null;
+  saveLocal(true);
+  updateArchiveFolderUI();
+  updateArchiveUI();
+  toast("アーカイブフォルダをクリアしました");
+});
+
 document.getElementById("btn-set-drive-file").addEventListener("click", () => {
-  closeSettings();
+  closeDriveSettings();
   showDriveFileDialog();
 });
 document.getElementById("btn-clear-drive-file").addEventListener("click", () => {
@@ -2214,7 +2488,7 @@ document.getElementById("btn-clear-drive-file").addEventListener("click", () => 
 });
 
 document.getElementById("btn-set-drive-folder").addEventListener("click", () => {
-  closeSettings();
+  closeDriveSettings();
   showDriveFolderDialog();
 });
 document.getElementById("btn-clear-drive-folder").addEventListener("click", () => {
@@ -2226,6 +2500,286 @@ document.getElementById("btn-clear-drive-folder").addEventListener("click", () =
   render();
   toast("保存先フォルダをクリアしました");
 });
+
+// ========== Archive ==========
+// ---- ZIP 生成（CDN 不要・純粋 JS） ----
+// CRC32 lookup table
+const _CRC32_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let j = 0; j < 8; j++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[i] = c;
+  }
+  return t;
+})();
+function _crc32(buf) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < buf.length; i++) c = (c >>> 8) ^ _CRC32_TABLE[(c ^ buf[i]) & 0xFF];
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+// 純粋 JS 実装の ZIP 生成（CDN 不要）
+// CompressionStream('deflate-raw') が使えるブラウザ（Chrome 80+, Safari 16.4+）は DEFLATE、
+// 非対応の場合は STORE（無圧縮）でフォールバック。
+async function createZipBlob(files) {
+  const enc = new TextEncoder();
+  const now = new Date();
+  const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+  const localParts = [], centralParts = [];
+  let localOffset = 0;
+
+  for (const { name, text } of files) {
+    const nameBytes = enc.encode(name);
+    const rawBytes  = enc.encode(text);
+    const crc = _crc32(rawBytes);
+    let compBytes, method;
+    try {
+      const ds = new CompressionStream('deflate-raw');
+      const w = ds.writable.getWriter();
+      w.write(rawBytes); w.close();
+      compBytes = new Uint8Array(await new Response(ds.readable).arrayBuffer());
+      method = 8; // DEFLATE
+    } catch { compBytes = rawBytes; method = 0; } // STORE fallback
+
+    // ローカルファイルヘッダ (30 bytes + filename)
+    const lh = new DataView(new ArrayBuffer(30 + nameBytes.length));
+    lh.setUint32( 0, 0x04034b50, true); // signature
+    lh.setUint16( 4, 20, true);         // version needed
+    lh.setUint16( 6, 0,  true);         // flags
+    lh.setUint16( 8, method, true);     // compression
+    lh.setUint16(10, dosTime, true);
+    lh.setUint16(12, dosDate, true);
+    lh.setUint32(14, crc, true);
+    lh.setUint32(18, compBytes.length, true);
+    lh.setUint32(22, rawBytes.length,  true);
+    lh.setUint16(26, nameBytes.length, true);
+    lh.setUint16(28, 0, true);          // extra field length
+    new Uint8Array(lh.buffer).set(nameBytes, 30);
+
+    // セントラルディレクトリエントリ (46 bytes + filename)
+    const cd = new DataView(new ArrayBuffer(46 + nameBytes.length));
+    cd.setUint32( 0, 0x02014b50, true); // signature
+    cd.setUint16( 4, 20, true); cd.setUint16( 6, 20, true);
+    cd.setUint16( 8, 0,  true); cd.setUint16(10, method, true);
+    cd.setUint16(12, dosTime, true); cd.setUint16(14, dosDate, true);
+    cd.setUint32(16, crc, true);
+    cd.setUint32(20, compBytes.length, true); cd.setUint32(24, rawBytes.length, true);
+    cd.setUint16(28, nameBytes.length, true);
+    cd.setUint16(30, 0, true); cd.setUint16(32, 0, true); cd.setUint16(34, 0, true);
+    cd.setUint16(36, 0, true); cd.setUint32(38, 0, true);
+    cd.setUint32(42, localOffset, true); // ローカルヘッダのオフセット
+    new Uint8Array(cd.buffer).set(nameBytes, 46);
+
+    const lhB = new Uint8Array(lh.buffer);
+    localParts.push(lhB, compBytes);
+    centralParts.push(new Uint8Array(cd.buffer));
+    localOffset += lhB.length + compBytes.length;
+  }
+
+  // End of Central Directory (22 bytes)
+  const cdSize = centralParts.reduce((s, p) => s + p.length, 0);
+  const eocd = new DataView(new ArrayBuffer(22));
+  eocd.setUint32( 0, 0x06054b50, true); // signature
+  eocd.setUint16( 4, 0, true); eocd.setUint16( 6, 0, true);
+  eocd.setUint16( 8, files.length, true); eocd.setUint16(10, files.length, true);
+  eocd.setUint32(12, cdSize,      true);
+  eocd.setUint32(16, localOffset, true);
+  eocd.setUint16(20, 0, true);
+
+  const all = [...localParts, ...centralParts, new Uint8Array(eocd.buffer)];
+  const total = all.reduce((s, a) => s + a.length, 0);
+  const buf = new Uint8Array(total);
+  let pos = 0;
+  for (const a of all) { buf.set(a, pos); pos += a.length; }
+  return new Blob([buf], { type: 'application/zip' });
+}
+
+// ---- アーカイブ統計・UI ----
+
+// カットオフ日以前のエントリ統計を返す
+function getArchiveStats() {
+  const days = settings.daysToKeep ?? 60;
+  const cutoff = new Date();
+  cutoff.setHours(0, 0, 0, 0);
+  cutoff.setDate(cutoff.getDate() - days);
+  const toArchive = state.entries.filter(e => new Date(e.time) < cutoff);
+  const toKeep    = state.entries.filter(e => new Date(e.time) >= cutoff);
+  const years = [...new Set(toArchive.map(e => new Date(e.time).getFullYear()))].sort((a, b) => a - b);
+  return { toArchive, toKeep, years, cutoff };
+}
+
+// 設定パネルのデータ管理 UI を更新
+function updateArchiveUI() {
+  const infoEl  = document.getElementById("archive-info");
+  const daysInp = document.getElementById("setting-days-to-keep");
+  const archBtn = document.getElementById("btn-archive");
+  if (!infoEl) return;
+  if (daysInp) daysInp.value = settings.daysToKeep ?? 60;
+  const raw = localStorage.getItem(STORAGE_KEY) || "";
+  const usageKB = Math.round(new Blob([raw]).size / 1024);
+  const { toArchive, years } = getArchiveStats();
+  let info = `エントリ: ${state.entries.length}件 / ストレージ: ${usageKB} KB`;
+  if (toArchive.length > 0) {
+    const yr = years.length === 1 ? `${years[0]}年` : `${years[0]}〜${years[years.length - 1]}年`;
+    info += `\n切り捨て対象: ${toArchive.length}件 (${yr})`;
+  } else {
+    info += "\n切り捨て対象: なし";
+  }
+  const folderOk = !!state.archiveFolderId && !!window.EDJIKI_CLIENT_ID;
+  info += `\nアーカイブ先: ${folderOk ? "✓ 設定済" : "⚠ 未設定（上のフォルダを設定してください）"}`;
+  infoEl.textContent = info;
+  if (archBtn) archBtn.disabled = !folderOk;
+}
+
+// アーカイブ確認ダイアログ（Promise を返す）
+function showArchiveConfirm(archivableCount, totalCount, yearRange, hasPrivate, hasLocked) {
+  return new Promise(resolve => {
+    const overlay = document.createElement("div");
+    overlay.className = "pw-overlay";
+    const modal = document.createElement("div");
+    modal.className = "pw-modal";
+
+    const hdr = document.createElement("div");
+    hdr.className = "pw-header";
+    hdr.textContent = "📦 アーカイブして切り捨て";
+
+    const body = document.createElement("div");
+    body.className = "pw-body";
+
+    const msg = document.createElement("div");
+    msg.style.cssText = "font-size:13px;line-height:1.7";
+    const lockedCount = totalCount - archivableCount;
+    msg.innerHTML =
+      `<strong>${archivableCount}件</strong>のエントリ（${yearRange}）を<br>` +
+      `Drive アーカイブフォルダに <code>jkYYYY.txt</code> / <code>.zip</code> として保存し、<br>` +
+      `現行データから削除します。` +
+      (hasLocked  ? `<div style="margin-top:6px;color:var(--muted);font-size:12px">` +
+                    `※ ${lockedCount}件はロック中のためアーカイブに含まれず、現行データに残ります</div>` : "") +
+      (hasPrivate ? `<div style="margin-top:6px;color:var(--private);font-size:12px">` +
+                    `⚠ private エントリが平文で含まれます</div>` : "") +
+      `<div style="margin-top:8px;color:var(--muted);font-size:11px">この操作は元に戻せません。</div>`;
+    body.appendChild(msg);
+
+    const ftr = document.createElement("div");
+    ftr.className = "pw-footer";
+    const cancel = document.createElement("button");
+    cancel.textContent = "キャンセル";
+    cancel.addEventListener("click", () => { overlay.remove(); resolve(false); });
+    const ok = document.createElement("button");
+    ok.className = "pw-ok";
+    ok.textContent = "アーカイブ & 削除";
+    ok.addEventListener("click", () => { overlay.remove(); resolve(true); });
+    ftr.appendChild(cancel); ftr.appendChild(ok);
+
+    modal.appendChild(hdr); modal.appendChild(body); modal.appendChild(ftr);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+  });
+}
+
+// ---- アーカイブ実行（Drive 保存 + ローカル切り捨て） ----
+
+// 確認後の実際の処理。pendingAction からも呼ばれる
+async function _executeArchive(stats) {
+  const { toArchive, toKeep, years } = stats;
+  const archivable = toArchive.filter(e => e.text !== null);
+  const lockedOld  = toArchive.filter(e => e.text === null);
+
+  const failedYears = new Set();
+
+  for (const year of years) {
+    const yearEntries = archivable.filter(e => new Date(e.time).getFullYear() === year);
+    if (yearEntries.length === 0) continue;
+
+    toast(`${year}年を処理中...`);
+    try {
+      // 1. Drive に既存の jkY.txt があればダウンロードしてマージ（欠けのない完全ファイルを保証）
+      const existingTxtId = await driveFindInFolder(`jk${year}.txt`, state.archiveFolderId);
+      let mergedEntries = yearEntries;
+      if (existingTxtId) {
+        const existingContent = await driveDownload(existingTxtId);
+        mergedEntries = mergeEntries(parseTxt(existingContent), yearEntries);
+      }
+
+      // 2. txt 生成・アップロード
+      const txtContent = serializeTxt({ entries: mergedEntries });
+      await driveUploadToFolder(existingTxtId, `jk${year}.txt`, txtContent, "text/plain", state.archiveFolderId);
+
+      // 3. zip 生成・アップロード（txt と常にセットで保存）
+      const zipBlob = await createZipBlob([{ name: `jk${year}.txt`, text: txtContent }]);
+      const existingZipId = await driveFindInFolder(`jk${year}.zip`, state.archiveFolderId);
+      await driveUploadToFolder(existingZipId, `jk${year}.zip`, zipBlob, "application/zip", state.archiveFolderId);
+
+    } catch (err) {
+      toast(`${year}年のアーカイブに失敗: ${err.message}`);
+      failedYears.add(year);
+    }
+  }
+
+  // 成功した年のエントリのみ削除。失敗年分とロック中は現行データに残す
+  const failedEntries = archivable.filter(e => failedYears.has(new Date(e.time).getFullYear()));
+  state.entries = [...toKeep, ...lockedOld, ...failedEntries];
+  driveDirty = true; updateDriveDirtyUI();
+  await saveLocal(true);
+  render();
+  updateArchiveUI();
+
+  const successYears = years.filter(y => !failedYears.has(y));
+  if (failedYears.size === 0) {
+    const count = archivable.length;
+    toast(`${count}件をアーカイブしました（${successYears.join("・")}年）`);
+  } else if (successYears.length > 0) {
+    toast(`${successYears.join("・")}年 完了 / ${[...failedYears].join("・")}年 失敗`);
+  } else {
+    toast("アーカイブに失敗しました");
+  }
+}
+
+async function archiveAndTruncate() {
+  // 事前チェック
+  if (!window.EDJIKI_CLIENT_ID) {
+    toast("アーカイブには Google Drive 設定が必要です（config.js）");
+    return;
+  }
+  if (!state.archiveFolderId) {
+    toast("⚙ → アーカイブフォルダを設定してください");
+    return;
+  }
+  if (state.cryptoVerifier && !cryptoKey) {
+    toast("アーカイブにはパスワード解除が必要です");
+    return;
+  }
+  const stats = getArchiveStats();
+  if (stats.toArchive.length === 0) {
+    toast(`切り捨て対象のエントリがありません（保持日数: ${settings.daysToKeep ?? 60}日）`);
+    return;
+  }
+  const archivable = stats.toArchive.filter(e => e.text !== null);
+  if (archivable.length === 0) {
+    toast("アーカイブ可能なエントリがありません（すべてロック中）");
+    return;
+  }
+  const hasLocked  = stats.toArchive.some(e => e.text === null);
+  const hasPrivate = archivable.some(e => e.private);
+  const yearRange  = stats.years.length === 1
+    ? `${stats.years[0]}年`
+    : `${stats.years[0]}〜${stats.years[stats.years.length - 1]}年`;
+
+  // 確認ダイアログ（認証前に表示）
+  const confirmed = await showArchiveConfirm(archivable.length, stats.toArchive.length, yearRange, hasPrivate, hasLocked);
+  if (!confirmed) return;
+
+  // 認証確保 → 実行（未認証なら OAuth 後に _executeArchive を pendingAction で再開）
+  ensureAuth(() => _executeArchive(stats));
+}
+
+document.getElementById("setting-days-to-keep").addEventListener("change", () => {
+  const v = parseInt(document.getElementById("setting-days-to-keep").value, 10);
+  if (v >= 1 && v <= 3650) { settings.daysToKeep = v; saveSettings(); updateArchiveUI(); }
+});
+document.getElementById("btn-archive").addEventListener("click", () => archiveAndTruncate());
 
 updateLockBtn();
 render();
