@@ -117,9 +117,9 @@ main {
 .entry-head {
   display: flex;
   align-items: center;
-  padding: 6px 10px;
+  padding: 3px 6px 2px;
   border-bottom: 1px solid var(--border);
-  gap: 8px;
+  gap: 6px;
   font-size: 12px;
   color: var(--muted);
 }
@@ -158,7 +158,7 @@ main {
   background: transparent;
   color: var(--fg);
   border: none;
-  padding: 10px;
+  padding: 5px 10px 8px;
   font-family: var(--entry-font-family, 'BIZ UDPGothic', sans-serif);
   font-size: var(--entry-font-size, 16px);
   line-height: var(--entry-line-height, 1.6);
@@ -555,6 +555,58 @@ main {
   overflow: hidden;
   flex-shrink: 0;
 }
+/* Fullscreen mode */
+.entry-fullscreen-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  min-height: 24px;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+/* マウス操作環境のみ: 常時うっすら表示し、ホバーで強調 */
+@media (hover: hover) {
+  .entry-fullscreen-btn { opacity: 0.25; }
+  .entry:hover .entry-fullscreen-btn { opacity: 1; }
+}
+body.fullscreen-mode header,
+body.fullscreen-mode .fab,
+body.fullscreen-mode .search-bar,
+body.fullscreen-mode main .entry:not(.fullscreen-entry) { display: none !important; }
+body.fullscreen-mode main { padding: 0; max-width: 100%; }
+.fullscreen-entry {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  border: none;
+  border-radius: 0;
+  margin: 0;
+  background: var(--bg);
+}
+.fullscreen-bar {
+  display: flex;
+  align-items: center;
+  padding: 3px 8px 2px;
+  border-bottom: 1px solid var(--border);
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  flex-shrink: 0;
+  background: var(--card);
+}
+.entry-body-fs {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px var(--fs-h-padding, 10px) 40px;
+  font-size: var(--fs-font-size, var(--entry-font-size, 16px));
+  line-height: var(--fs-line-height, var(--entry-line-height, 1.6));
+}
 </style>
 </head>
 <body>
@@ -571,6 +623,7 @@ main {
 </header>
 <div class="menu" id="menu">
   <button id="menu-btn-undo" data-act="undo" disabled>↩ 元に戻す</button>
+  <button id="menu-btn-fullscreen" data-act="fullscreen" disabled>⛶ 全画面モードへ</button>
   <hr>
   <button data-act="download">💾 ダウンロード (.txt)</button>
   <button data-act="import">📂 ファイルから読込</button>
@@ -660,6 +713,25 @@ main {
     <div class="settings-row">
       <label class="settings-label">セキュリティ</label>
       <div class="security-btns" id="security-btns"></div>
+    </div>
+    <div class="settings-row">
+      <label class="settings-label">ファイル形式</label>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:12px;display:flex;align-items:center;gap:8px">
+          改行コード
+          <select id="setting-line-ending" style="flex:1">
+            <option value="LF">LF（Unix / macOS）</option>
+            <option value="CRLF">CRLF（Windows）</option>
+          </select>
+        </label>
+        <label style="font-size:12px;display:flex;align-items:center;gap:8px">
+          日付区切り
+          <select id="setting-date-sep" style="flex:1">
+            <option value="/">YYYY/MM/DD（標準）</option>
+            <option value="-">YYYY-MM-DD（ISO 8601）</option>
+          </select>
+        </label>
+      </div>
     </div>
   </div>
 </div>
@@ -826,11 +898,12 @@ main {
     <div class="pw-body">
       <div class="help-section">ヘッダーボタン</div>
       <table class="help-table">
+        <tr><td>edjiki（タイトル）</td><td>Drive 接続時はフォルダ名 / ファイル名を表示</td></tr>
         <tr><td>＋新規</td><td>新規エントリを先頭に追加</td></tr>
         <tr><td>🔍</td><td>検索バーを開く</td></tr>
         <tr><td>🔐 / 🔓</td><td>パスワード解除 / ロック（パスワード設定時のみ表示）</td></tr>
         <tr><td>☁</td><td>Drive に未保存の変更あり → クリックで即時保存</td></tr>
-        <tr><td>⚙</td><td>設定パネルを開く（テーマ・フォント・セキュリティ）</td></tr>
+        <tr><td>⚙</td><td>設定パネルを開く（テーマ・フォント・ファイル形式・セキュリティ）</td></tr>
         <tr><td>⋯</td><td>メニュー（ダウンロード・インポート・Drive 操作・設定・ヘルプ）</td></tr>
       </table>
       <div class="help-section">キーボードショートカット</div>
@@ -841,8 +914,9 @@ main {
         <tr><td>Ctrl+Shift+S</td><td>.txt ファイルをダウンロード</td></tr>
         <tr><td>Ctrl+Shift+D</td><td>Google Drive に保存</td></tr>
         <tr><td>Ctrl+P</td><td>フォーカス中エントリの public / private 切替</td></tr>
+        <tr><td>Ctrl+Enter</td><td>フォーカス中エントリを全画面表示 / 全画面を終了</td></tr>
         <tr><td>Ctrl+F</td><td>検索バーを開く</td></tr>
-        <tr><td>Esc</td><td>検索バーを閉じる</td></tr>
+        <tr><td>Esc</td><td>全画面を終了 / 検索バーを閉じる</td></tr>
       </table>
       <div class="help-section">エントリの操作</div>
       <table class="help-table">
@@ -850,13 +924,14 @@ main {
         <tr><td>本文編集</td><td>テキストエリアを直接入力。300ms デバウンスで自動保存</td></tr>
         <tr><td>タイムスタンプ</td><td>エントリ上部の日時をクリックで編集（秒単位まで）</td></tr>
         <tr><td>public / private</td><td>エントリ上部のボタンまたは Ctrl+P で切替</td></tr>
-        <tr><td>削除</td><td>エントリ上部の ✕ ボタン（確認なし）</td></tr>
+        <tr><td>削除</td><td>エントリ上部の ✕ ボタン（確認なし。全画面中は非表示）</td></tr>
+        <tr><td>全画面</td><td>マウス操作: エントリにカーソルを乗せると ⛶ が現れる。スマホ・PC共通: ⋯ メニュー → 全画面モードへ / Ctrl+Enter。終了は ✕ 閉じる または Esc</td></tr>
         <tr><td>自動削除</td><td>本文を空にしてフォーカスを外すと自動削除</td></tr>
       </table>
       <div class="help-section">検索</div>
       <table class="help-table">
         <tr><td>本文検索</td><td>キーワードを入力 → 部分一致で絞り込み</td></tr>
-        <tr><td>日付検索</td><td>2026/04 のように入力 → その月のエントリのみ表示</td></tr>
+        <tr><td>日付検索</td><td>2026/04 または 2026-04 のように入力 → その月のエントリのみ表示</td></tr>
         <tr><td>閉じる</td><td>Esc キーまたは ✕ ボタン</td></tr>
       </table>
       <div class="help-section">Google Drive 連携</div>
@@ -881,10 +956,12 @@ main {
         <tr><td>フォントサイズ</td><td>12〜24px をスライダーで調整</td></tr>
         <tr><td>行間</td><td>1.2〜2.0 をスライダーで調整</td></tr>
         <tr><td>フォント</td><td>ゴシック・明朝・等幅など 12 書体から選択</td></tr>
+        <tr><td>改行コード</td><td>LF（Unix / macOS）または CRLF（Windows）。ダウンロード・Drive 保存に適用</td></tr>
+        <tr><td>日付区切り</td><td>YYYY/MM/DD（標準）または YYYY-MM-DD（ISO 8601）。読込時は両方を自動認識</td></tr>
       </table>
       <div class="help-section">Drive 設定（⋯ → Drive 設定）</div>
       <table class="help-table">
-        <tr><td>保存先フォルダ</td><td>Drive の保存先フォルダを URL で指定</td></tr>
+        <tr><td>保存先フォルダ</td><td>Drive の保存先フォルダを URL で指定（設定後はヘッダにフォルダ名を表示）</td></tr>
         <tr><td>アーカイブフォルダ</td><td>jkYYYY.txt / .zip を保存する専用フォルダを指定</td></tr>
         <tr><td>データ管理</td><td>ストレージ使用量の確認・保持日数設定・アーカイブ実行</td></tr>
         <tr><td>ファイル直接指定</td><td>アプリ外で作成した .txt を使う場合に設定（drive スコープに昇格）</td></tr>
@@ -892,9 +969,9 @@ main {
       <div class="help-section">データについて</div>
       <table class="help-table">
         <tr><td>保存先</td><td>localStorage（約 5MB 上限）に自動保存</td></tr>
-        <tr><td>テキスト形式</td><td>YYYY/MM/DD HH:MM:SS 本文（private は -HH:MM:SS）</td></tr>
-        <tr><td>インポート</td><td>⋯ → ファイルから読込（現在データとマージ、重複は自動除去）</td></tr>
-        <tr><td>エクスポート</td><td>⋯ → ダウンロード (.txt) で平文テキストとして保存</td></tr>
+        <tr><td>テキスト形式</td><td>YYYY/MM/DD HH:MM:SS 本文（private は -HH:MM:SS）。日付区切りは設定で変更可</td></tr>
+        <tr><td>インポート</td><td>⋯ → ファイルから読込（現在データとマージ、重複は自動除去）。UTF-8 / Shift-JIS を自動判別</td></tr>
+        <tr><td>エクスポート</td><td>⋯ → ダウンロード (.txt) で平文テキストとして保存（文字コードは常に UTF-8）</td></tr>
       </table>
     </div>
     <div class="pw-footer">
@@ -936,6 +1013,9 @@ if (state.driveFolderId === undefined) {
 if (state.archiveFolderId === undefined) {
   state.archiveFolderId = null;
 }
+if (state.driveFolderName === undefined) {
+  state.driveFolderName = null;
+}
 // config.js で直接ファイル ID が指定されていれば優先適用（UI 設定の初期値として使用）
 const CONFIG_FILE_ID = window.EDJIKI_DRIVE_FILE_ID || null;
 // 既存 state に drivePinnedFileId がなければ config.js の値で初期化
@@ -973,6 +1053,16 @@ function saveLocal(immediate) {
   };
   if (immediate) return run();
   saveTimer = setTimeout(run, 300);
+}
+
+function updateTitle() {
+  const h1 = document.querySelector("header h1");
+  if (state.driveFolderId || state.drivePinnedFileId) {
+    const folder = state.driveFolderName || (state.driveFolderId ? "📁" : "");
+    h1.textContent = (folder ? folder + "/" : "") + state.driveFileName;
+  } else {
+    h1.textContent = "edjiki";
+  }
 }
 
 // ========== Undo ==========
@@ -1039,22 +1129,40 @@ function normalizeText(t) {
 
 // ========== Txt serialize / parse ==========
 function serializeTxt(st) {
+  const sep = (typeof settings !== "undefined" ? settings.dateSep : null) || "/";
   const sorted = [...st.entries].sort((a, b) => new Date(b.time) - new Date(a.time));
   const out = [];
   for (const e of sorted) {
     const d = new Date(e.time);
-    const head = `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${e.private ? "-" : ""}${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    const head = `${d.getFullYear()}${sep}${pad(d.getMonth()+1)}${sep}${pad(d.getDate())} ${e.private ? "-" : ""}${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     const body = normalizeText(e.text ?? "");  // null（ロック中）はスキップ
     if (!body) continue;
     const lines = body.split("\n");
     out.push(`${head} ${lines[0]}`);
     for (let i = 1; i < lines.length; i++) out.push(lines[i]);
   }
-  return out.join("\n") + (out.length ? "\n" : "");
+  const eol = (typeof settings !== "undefined" ? settings.lineEnding : null) === "CRLF" ? "\r\n" : "\n";
+  return out.join(eol) + (out.length ? eol : "");
+}
+function detectAndDecode(buf) {
+  const b = new Uint8Array(buf);
+  // UTF-8 BOM → BOM を除いて UTF-8 デコード
+  if (b[0] === 0xEF && b[1] === 0xBB && b[2] === 0xBF)
+    return new TextDecoder("utf-8").decode(buf.slice(3));
+  // UTF-16 BOM → 非対応
+  if ((b[0] === 0xFF && b[1] === 0xFE) || (b[0] === 0xFE && b[1] === 0xFF))
+    throw new Error("UTF-16 は非対応です（UTF-8 または Shift-JIS で保存してください）");
+  // strict UTF-8 として試みる（fatal: true は不正バイト列で例外）
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(buf);
+  } catch {
+    // UTF-8 として不正 → Shift-JIS として読む
+    return new TextDecoder("shift-jis").decode(buf);
+  }
 }
 function parseTxt(src) {
   const lines = src.replace(/\r\n?/g, "\n").split("\n");
-  const HEAD = /^(\d{4})\/(\d{2})\/(\d{2}) (-?)(\d{2}):(\d{2}):(\d{2})(?: (.*))?$/;
+  const HEAD = /^(\d{4})[\/\-](\d{2})[\/\-](\d{2}) (-?)(\d{2}):(\d{2}):(\d{2})(?: (.*))?$/;
   const out = [];
   let cur = null;
   for (const line of lines) {
@@ -1250,10 +1358,20 @@ function newId() {
 
 // ========== Render ==========
 const $entries = document.getElementById("entries");
+let fullscreenEntryId = null;
+let lastFocusedEntry = null;
+let _fullscreenPending = false; // ⛶ touchstart/mousedown → click の間 blur 削除を抑制
 function sortEntries() {
   state.entries.sort((a, b) => new Date(b.time) - new Date(a.time));
 }
 function render() {
+  updateTitle();
+  // 全画面中に対象エントリが削除されたときはモードを解除
+  if (fullscreenEntryId && !state.entries.find(x => x.id === fullscreenEntryId)) {
+    fullscreenEntryId = null;
+    document.body.classList.remove("fullscreen-mode");
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  }
   const sy = window.scrollY;
   sortEntries();
   $entries.innerHTML = "";
@@ -1272,10 +1390,14 @@ function render() {
       return d;
     })() : buildOnboardingCard());
   }
-  // resize after append, then restore scroll
   requestAnimationFrame(() => {
-    $entries.querySelectorAll("textarea").forEach(autoResize);
-    window.scrollTo(0, sy);
+    $entries.querySelectorAll("textarea:not([data-no-autoresize])").forEach(autoResize);
+    if (fullscreenEntryId) {
+      const fsta = document.querySelector(".fullscreen-entry textarea");
+      if (fsta) fsta.focus();
+    } else {
+      window.scrollTo(0, sy);
+    }
   });
 }
 function buildOnboardingCard() {
@@ -1368,12 +1490,23 @@ function makeOnboardingStep(isDone, label, value, btnLabel, onClick) {
   return row;
 }
 function renderEntry(e) {
+  const isFS = fullscreenEntryId === e.id;
   const div = document.createElement("div");
-  div.className = "entry" + (e.private ? " private" : "");
+  div.className = "entry" + (e.private ? " private" : "") + (isFS ? " fullscreen-entry" : "");
   div.dataset.id = e.id;
 
   const head = document.createElement("div");
-  head.className = "entry-head";
+  head.className = isFS ? "fullscreen-bar" : "entry-head";
+
+  if (isFS) {
+    const backBtn = document.createElement("button");
+    backBtn.className = "entry-delete";
+    backBtn.textContent = "✕ 閉じる";
+    backBtn.title = "全画面を終了 (Esc)";
+    backBtn.style.cssText = "font-size:12px;padding:2px 8px";
+    backBtn.addEventListener("click", exitFullscreen);
+    head.appendChild(backBtn);
+  }
 
   const time = document.createElement("span");
   time.className = "entry-time";
@@ -1404,18 +1537,31 @@ function renderEntry(e) {
   });
   head.appendChild(privBtn);
 
-  const delBtn = document.createElement("button");
-  delBtn.className = "entry-delete";
-  delBtn.textContent = "✕";
-  delBtn.title = "削除";
-  delBtn.addEventListener("click", () => {
-    pushUndo();
-    state.entries = state.entries.filter(x => x.id !== e.id);
-    driveDirty = true; updateDriveDirtyUI();
-    saveLocal(true);
-    render();
-  });
-  head.appendChild(delBtn);
+  if (!isFS) {
+    const delBtn = document.createElement("button");
+    delBtn.className = "entry-delete";
+    delBtn.textContent = "✕";
+    delBtn.title = "削除";
+    delBtn.addEventListener("click", () => {
+      pushUndo();
+      state.entries = state.entries.filter(x => x.id !== e.id);
+      driveDirty = true; updateDriveDirtyUI();
+      saveLocal(true);
+      render();
+    });
+    head.appendChild(delBtn);
+  }
+
+  if (!isFS) {
+    const fsBtn = document.createElement("button");
+    fsBtn.className = "entry-fullscreen-btn";
+    fsBtn.textContent = "⛶";
+    fsBtn.title = "全画面 (Ctrl+Enter)";
+    fsBtn.addEventListener("touchstart", () => { _fullscreenPending = true; }, { passive: true });
+    fsBtn.addEventListener("mousedown", ev => { ev.preventDefault(); _fullscreenPending = true; });
+    fsBtn.addEventListener("click", () => enterFullscreen(e));
+    head.appendChild(fsBtn);
+  }
 
   div.appendChild(head);
 
@@ -1431,10 +1577,12 @@ function renderEntry(e) {
   }
 
   const ta = document.createElement("textarea");
-  ta.className = "entry-body";
+  ta.className = "entry-body" + (isFS ? " entry-body-fs" : "");
+  if (isFS) ta.dataset.noAutoresize = "1";
   ta.value = e.text;
   ta.spellcheck = false;
   ta.addEventListener("focus", () => {
+    lastFocusedEntry = e;
     if (!ta._undoSaved) {
       ta._undoSaved = true;
       pushUndo();
@@ -1442,11 +1590,22 @@ function renderEntry(e) {
   });
   ta.addEventListener("input", () => {
     e.text = ta.value;
-    autoResize(ta);
+    if (!isFS) autoResize(ta);
     driveDirty = true; updateDriveDirtyUI();
     saveLocal();
   });
   ta.addEventListener("blur", () => {
+    // DOM から外れた textarea からの遅延 blur は無視
+    if (!ta.isConnected) return;
+    // ⛶ タップ待ち、または全画面遷移中の blur は削除しない
+    if (_fullscreenPending || isFS) {
+      // モバイルで全画面解除時に ta.value が空で blur が来る場合がある
+      // その場合は既存の e.text を温存し、input イベントで更新された値を守る
+      const val = normalizeText(ta.value);
+      if (val) e.text = val;
+      saveLocal(true);
+      return;
+    }
     const normalized = normalizeText(ta.value);
     e.text = normalized;
     if (normalized === "") {
@@ -1495,6 +1654,58 @@ function editTime(e, span) {
   });
 }
 
+function applyFullscreenFont() {
+  const r = document.documentElement;
+  if (fullscreenEntryId) {
+    const mobile = window.matchMedia("(max-width: 600px)").matches;
+    r.style.setProperty("--fs-font-size",   (settings.fontSize  + (mobile ? 2 : 4)) + "px");
+    r.style.setProperty("--fs-line-height", (settings.lineHeight + (mobile ? 0.1 : 0.2)).toFixed(1));
+    r.style.setProperty("--fs-h-padding",    mobile ? "5vw" : "8vw");
+  } else {
+    r.style.removeProperty("--fs-font-size");
+    r.style.removeProperty("--fs-line-height");
+    r.style.removeProperty("--fs-h-padding");
+  }
+}
+function enterFullscreen(e) {
+  // body.fullscreen-mode クラス追加時の display:none 起因の blur、および
+  // render() 内 innerHTML="" 起因の blur から空エントリ削除を守るフラグ
+  _fullscreenPending = true;
+  fullscreenEntryId = e.id;
+  document.body.classList.add("fullscreen-mode");
+  applyFullscreenFont();
+  render();
+  document.documentElement.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
+  _fullscreenPending = false;
+}
+function exitFullscreen() {
+  if (!fullscreenEntryId) return;
+  _fullscreenPending = true;
+  const entId = fullscreenEntryId;
+  // DOM撤去前にテキストをスナップショット（blur が stale value を返す場合に備える）
+  const fsta = document.querySelector(".fullscreen-entry textarea");
+  const ent  = state.entries.find(x => x.id === entId);
+  if (ent && ent.text !== null) {
+    // DOM の値が取れればそれを優先（最新の入力を反映）
+    // 取れない・空の場合は input イベントで更新された ent.text を信頼
+    const domVal = fsta ? normalizeText(fsta.value) : "";
+    const trusted = domVal || normalizeText(ent.text);
+    ent.text = trusted;
+  }
+  // 空エントリの後処理（ent.text が確定してから判定）
+  const finalEnt = state.entries.find(x => x.id === entId);
+  if (finalEnt && !finalEnt.text) {
+    state.entries = state.entries.filter(x => x.id !== entId);
+  }
+  fullscreenEntryId = null;
+  document.body.classList.remove("fullscreen-mode");
+  applyFullscreenFont();
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  saveLocal(true);
+  render();
+  _fullscreenPending = false;
+}
+
 // ========== Actions ==========
 function newEntry() {
   if (searchQuery) {
@@ -1502,6 +1713,7 @@ function newEntry() {
     $search.value = "";
   }
   const e = { id: newId(), time: nowIso(), private: false, text: "" };
+  lastFocusedEntry = e;
   state.entries.unshift(e);
   driveDirty = true; updateDriveDirtyUI();
   saveLocal(true);
@@ -1546,7 +1758,8 @@ document.getElementById("file-input").addEventListener("change", async (ev) => {
     return;
   }
   try {
-    const txt = await f.text();
+    const buf = await f.arrayBuffer();
+    const txt = detectAndDecode(buf);
     const imported = parseTxt(txt);
     state.entries = mergeEntries(state.entries, imported);
     driveDirty = true; updateDriveDirtyUI();
@@ -1587,6 +1800,34 @@ function updateDriveDirtyUI() {
   }
 }
 
+async function fetchAndCacheFileName() {
+  if (!accessToken || !state.drivePinnedFileId) return;
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${state.drivePinnedFileId}?fields=name`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      if (data.name) { state.driveFileName = data.name; saveLocal(true); updateTitle(); }
+    }
+  } catch {}
+}
+async function fetchAndCacheFolderName() {
+  if (!accessToken || !state.driveFolderId || state.driveFolderName) return;
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${state.driveFolderId}?fields=name`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      state.driveFolderName = data.name;
+      saveLocal(true);
+      updateTitle();
+    }
+  } catch {}
+}
 function initDrive() {
   if (tokenClient) return true;
   if (!window.google || !window.google.accounts || !window.google.accounts.oauth2) return false;
@@ -1599,6 +1840,8 @@ function initDrive() {
     callback: (resp) => {
       if (resp.error) { toast("認証エラー: " + resp.error); return; }
       accessToken = resp.access_token;
+      fetchAndCacheFolderName();
+      fetchAndCacheFileName();
       const act = pendingAction; pendingAction = null;
       if (act) act();
     },
@@ -1627,7 +1870,7 @@ async function driveDownload(id) {
     headers: { Authorization: `Bearer ${accessToken}` }
   });
   if (!res.ok) throw new Error("ダウンロード失敗 " + res.status);
-  return res.text();
+  return detectAndDecode(await res.arrayBuffer());
 }
 async function driveFindByName() {
   let q = `name='${DRIVE_FILENAME}' and trashed=false`;
@@ -1654,8 +1897,8 @@ async function driveUpload() {
     content +
     `\r\n--${boundary}--`;
   const url = state.driveFileId
-    ? `https://www.googleapis.com/upload/drive/v3/files/${state.driveFileId}?uploadType=multipart&fields=id,modifiedTime`
-    : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,modifiedTime`;
+    ? `https://www.googleapis.com/upload/drive/v3/files/${state.driveFileId}?uploadType=multipart&fields=id,modifiedTime,name`
+    : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,modifiedTime,name`;
   const method = state.driveFileId ? "PATCH" : "POST";
   const res = await fetch(url, {
     method,
@@ -1681,6 +1924,7 @@ function driveSave() {
         if (found) {
           state.driveFileId = found.id;
           state.driveModifiedTime = found.modifiedTime;
+          if (found.name) state.driveFileName = found.name;
         }
       }
       // 競合チェック
@@ -1697,8 +1941,10 @@ function driveSave() {
       const file = await driveUpload();
       state.driveFileId = file.id;
       state.driveModifiedTime = file.modifiedTime;
+      if (file.name) state.driveFileName = file.name;
       driveDirty = false; updateDriveDirtyUI();
       saveLocal(true);
+      updateTitle();
       toast("Drive に保存しました");
     } catch (e) {
       toast("Drive 保存失敗: " + e.message);
@@ -1724,6 +1970,7 @@ function driveLoad() {
       const imported = parseTxt(txt);
       state.driveFileId = id;
       state.driveModifiedTime = meta.modifiedTime;
+      if (meta.name) state.driveFileName = meta.name;
       state.entries = mergeEntries(state.entries, imported);
       driveDirty = false; updateDriveDirtyUI();
       saveLocal(true);
@@ -1793,6 +2040,8 @@ document.getElementById("btn-lock").addEventListener("click", async () => {
 document.getElementById("btn-menu").addEventListener("click", (e) => {
   e.stopPropagation();
   document.getElementById("menu").classList.toggle("open");
+  document.getElementById("menu-btn-fullscreen").disabled =
+    !lastFocusedEntry || lastFocusedEntry.text === null;
 });
 document.addEventListener("click", (e) => {
   const menu = document.getElementById("menu");
@@ -1810,6 +2059,16 @@ document.getElementById("menu").addEventListener("click", (e) => {
   else if (act === "drive-load") driveLoad();
   else if (act === "drive-settings") openDriveSettings();
   else if (act === "help") document.getElementById("help-overlay").classList.remove("hidden");
+  else if (act === "fullscreen") {
+    const ent = lastFocusedEntry;
+    if (ent && ent.text !== null) {
+      // blurで空エントリが削除されていた場合は復元してから全画面へ
+      if (!state.entries.find(x => x.id === ent.id)) {
+        state.entries.unshift(ent);
+      }
+      enterFullscreen(ent);
+    }
+  }
   else if (act === "signout") driveSignOut();
 });
 
@@ -1853,12 +2112,33 @@ document.addEventListener("keydown", (e) => {
       if (ent && ent.text !== null && (ent.private || state.cryptoVerifier)) { ent.private = !ent.private; saveLocal(true); render(); }
     }
   }
-  else if (e.key === "Escape" && !$searchBar.classList.contains("hidden")) {
-    $searchBar.classList.add("hidden");
-    searchQuery = "";
-    $search.value = "";
-    render();
+  else if (e.ctrlKey && e.key === "Enter") {
+    e.preventDefault();
+    if (fullscreenEntryId) {
+      exitFullscreen();
+    } else {
+      const active = document.activeElement && document.activeElement.closest && document.activeElement.closest(".entry");
+      if (active) {
+        const ent = state.entries.find(x => x.id === active.dataset.id);
+        if (ent && ent.text !== null) enterFullscreen(ent);
+      }
+    }
   }
+  else if (e.key === "Escape") {
+    if (fullscreenEntryId) {
+      exitFullscreen();
+    } else if (!$searchBar.classList.contains("hidden")) {
+      $searchBar.classList.add("hidden");
+      searchQuery = "";
+      $search.value = "";
+      render();
+    }
+  }
+});
+
+// ブラウザの Esc などネイティブ操作で全画面が終了したとき
+document.addEventListener("fullscreenchange", () => {
+  if (!document.fullscreenElement && fullscreenEntryId) exitFullscreen();
 });
 
 // Online/offline
@@ -1902,7 +2182,7 @@ const THEMES = [
   { key: "blue-water", label: "ブルー",  bg:"#0d1b2a", fg:"#d0e8f8", muted:"#5a8aaa", accent:"#4fc3f7", border:"#1e3a4f", card:"#122537", private:"#ff9c70", danger:"#ef5350", scheme:"dark"  },
   { key: "nord",       label: "ノルド",  bg:"#2e3440", fg:"#eceff4", muted:"#7b8fa8", accent:"#88c0d0", border:"#434c5e", card:"#3b4252", private:"#ebcb8b", danger:"#bf616a", scheme:"dark"  },
 ];
-const SETTINGS_DEFAULTS = { fontSize: 16, lineHeight: 1.6, fontKey: "biz-ud", theme: "auto", daysToKeep: 60 };
+const SETTINGS_DEFAULTS = { fontSize: 16, lineHeight: 1.6, fontKey: "biz-ud", theme: "auto", daysToKeep: 60, lineEnding: "LF", dateSep: "/" };
 let settings = (() => {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -1934,6 +2214,7 @@ function applySettings() {
     ["--bg","--fg","--muted","--accent","--border","--card","--private","--danger","color-scheme"]
       .forEach(v => r.style.removeProperty(v));
   }
+  applyFullscreenFont();
 }
 function renderThemeOptions() {
   const container = document.getElementById("theme-options");
@@ -1983,6 +2264,8 @@ function openSettings() {
   if (radio) radio.checked = true;
   renderThemeOptions();
   updateSecurityUI();
+  document.getElementById("setting-line-ending").value = settings.lineEnding || "LF";
+  document.getElementById("setting-date-sep").value    = settings.dateSep    || "/";
   $settingsPanel.classList.add("open");
   $settingsOverlay.classList.add("open");
 }
@@ -2264,10 +2547,12 @@ function showDriveFolderDialog() {
     if (!root && !fid) return;
     if (fid !== state.driveFolderId) {
       state.driveFolderId     = fid;
+      state.driveFolderName   = null;
       state.driveFileId       = null;
       state.driveModifiedTime = null;
       saveLocal(true);
       toast(fid ? "保存先フォルダを設定しました" : "マイドライブ直下に設定しました");
+      fetchAndCacheFolderName();
     }
     overlay.classList.add("hidden");
     updateDriveSettingsUI();
@@ -2361,7 +2646,7 @@ function showDriveFileDialog() {
     if (ev.key === "Enter" && !document.getElementById("drive-file-ok").disabled)
       document.getElementById("drive-file-ok").click();
   });
-  document.getElementById("drive-file-ok").addEventListener("click", () => {
+  document.getElementById("drive-file-ok").addEventListener("click", async () => {
     const fid = extractFileIdFromUrl(
       document.getElementById("drive-file-url-input").value);
     if (!fid) return;
@@ -2369,6 +2654,19 @@ function showDriveFileDialog() {
       state.drivePinnedFileId = fid;
       state.driveFileId       = fid;
       state.driveModifiedTime = null;
+      // 認証済みであれば auth クリア前にファイル名を取得してタイトルに反映
+      if (accessToken) {
+        try {
+          const res = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${fid}?fields=name`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          if (res.ok) {
+            const d = await res.json();
+            if (d.name) state.driveFileName = d.name;
+          }
+        } catch {}
+      }
       tokenClient = null;  // スコープ変更のため再初期化
       accessToken = null;
       saveLocal(true);
@@ -2493,6 +2791,7 @@ document.getElementById("btn-set-drive-folder").addEventListener("click", () => 
 });
 document.getElementById("btn-clear-drive-folder").addEventListener("click", () => {
   state.driveFolderId     = null;
+  state.driveFolderName   = null;
   state.driveFileId       = null;
   state.driveModifiedTime = null;
   saveLocal(true);
@@ -2778,6 +3077,14 @@ async function archiveAndTruncate() {
 document.getElementById("setting-days-to-keep").addEventListener("change", () => {
   const v = parseInt(document.getElementById("setting-days-to-keep").value, 10);
   if (v >= 1 && v <= 3650) { settings.daysToKeep = v; saveSettings(); updateArchiveUI(); }
+});
+document.getElementById("setting-line-ending").addEventListener("change", (ev) => {
+  settings.lineEnding = ev.target.value;
+  saveSettings();
+});
+document.getElementById("setting-date-sep").addEventListener("change", (ev) => {
+  settings.dateSep = ev.target.value;
+  saveSettings();
 });
 document.getElementById("btn-archive").addEventListener("click", () => archiveAndTruncate());
 

@@ -50,8 +50,9 @@ Note: `EDJIKI_DRIVE_FOLDER_ID` and `EDJIKI_DRIVE_FILE_ID` can also be set at run
 | `Ctrl+Shift+S` | Download `.txt` |
 | `Ctrl+Shift+D` | Save to Drive |
 | `Ctrl+P` | Toggle public/private on focused entry |
+| `Ctrl+Enter` | Enter / exit fullscreen for focused entry |
 | `Ctrl+F` | Open search bar |
-| `Esc` | Close search bar |
+| `Esc` | Exit fullscreen / close search bar |
 
 ## Production deploy
 
@@ -64,6 +65,7 @@ The script is organized into named sections separated by `// ========== Section 
 | Section | Responsibility |
 |---|---|
 | **State** | `state` object + `loadLocal` / `saveLocal` (debounced 300 ms, immediate on flush) |
+| **Undo** | `undoStack` (max 5 snapshots of `state.entries`); `pushUndo()` — deep-clones entries onto the stack, skips if identical to top; `undo()` — pops and restores; triggered on textarea `focus` (first time per element) and `delBtn` click |
 | **Time utils** | `nowIso`, `isoFromParts`, `fmtDisplay`, `fmtLocalInput`, `tzSuffix` — all times stored as ISO 8601 with local TZ offset |
 | **Normalize** | `normalizeText` strips empty lines and trailing whitespace — entries with empty normalized text are auto-deleted |
 | **Txt serialize/parse** | `serializeTxt` / `parseTxt` — text format is `YYYY/MM/DD HH:MM:SS body` (private entries use `-HH:MM:SS`) |
@@ -71,14 +73,13 @@ The script is organized into named sections separated by `// ========== Section 
 | **Crypto** | `deriveKey` (PBKDF2/SHA-256, 300k iterations), `encryptText`/`decryptText` (AES-GCM 256bit), `encryptEntry`/`decryptEntry`, `setupPassword`/`removePassword`/`changePassword`/`unlockWithPassword`/`lockEntries` |
 | **ID** | `newId()` — wraps `crypto.randomUUID()` with a manual UUID v4 fallback |
 | **Render** | Full DOM re-render on every state change; `autoResize` keeps textareas fitted to content; `buildOnboardingCard()` renders first-run guidance when `state.entries` is empty |
-| **Undo** | `undoStack` (max 5 snapshots of `state.entries`); `pushUndo()` — deep-clones entries onto the stack, skips if identical to top; `undo()` — pops and restores; triggered on textarea `focus` (first time per element) and `delBtn` click |
 | **Actions** | `newEntry` — creates entry, prepends to `state.entries`, sets `driveDirty`, calls `render()`, focuses textarea |
 | **Search** | `matchQuery` — partial text match OR date-prefix match against `fmtDisplay` output |
 | **Download / Import** | `download` (serializeTxt → Blob), `importFile` (parseTxt + mergeEntries) |
 | **Toast** | `toast(msg)` — creates `.toast` div, auto-removes after 3.5 s |
-| **Drive** | GSI token client; scope is `drive.file` normally, `drive` when `state.drivePinnedFileId` or `CONFIG_FILE_ID` is set; `driveSave` checks `modifiedTime` before upload and prompts merge on conflict; `driveLoad` merges remote into local; both blocked when locked; `driveDirty` flag + `updateDriveDirtyUI()` shows/hides the ☁ header button |
+| **Drive** | GSI token client; scope is `drive.file` normally, `drive` when `state.drivePinnedFileId` or `CONFIG_FILE_ID` is set; `driveSave` checks `modifiedTime` before upload and prompts merge on conflict; `driveLoad` merges remote into local; both blocked when locked; `driveSignOut` clears token and resets UI; `driveDirty` flag + `updateDriveDirtyUI()` shows/hides the ☁ header button |
 | **UI wire** | Event listeners, keyboard shortcuts, online/offline banner, `beforeunload`/`visibilitychange` flush |
-| **Settings** | Color theme (7 presets: 自動/ダーク/ライト/セピア/さくら/ブルー/ノルド), font, font-size (12–24 px), line-height — stored separately in `localStorage["edjiki.settings"]`, applied via CSS custom properties on `<body>`; opened via ⚙ header button |
+| **Settings** | Color theme (7 presets: 自動/ダーク/ライト/セピア/さくら/ブルー/ノルド), font (12 families), font-size (12–24 px), line-height, `daysToKeep` (default 60, controls archive cut-off) — stored separately in `localStorage["edjiki.settings"]`, applied via CSS custom properties on `<html>`; opened via ⚙ header button |
 | **Drive Settings** | `openDriveSettings` / `closeDriveSettings` — side panel opened from ⋯ menu; `showDriveFolderDialog` / `showDriveFileDialog` / `showArchiveFolderDialog` — parse Google Drive URLs to extract folder/file IDs, update `state.driveFolderId` / `state.drivePinnedFileId` / `state.archiveFolderId` |
 | **Archive** | `createZipBlob(files)` — pure-JS ZIP writer (CRC32 + `CompressionStream('deflate-raw')` with STORE fallback, no CDN); `archiveAndTruncate()` → `_executeArchive(stats)` — for each year: downloads existing `jkY.txt` from `state.archiveFolderId`, merges with new cut entries (ensuring no gaps from Jan 1), re-uploads `jkY.txt` + `jkY.zip` to archive folder, then removes successfully archived entries from state; locked entries skip archive but stay in current data; Drive upload uses generic `driveUploadToFolder` / `driveFindInFolder` helpers |
 
@@ -101,7 +102,7 @@ The script is organized into named sections separated by `// ========== Section 
 
 Persisted to `localStorage["edjiki.data"]` as JSON.
 
-`state.archiveFolderId` — Drive folder ID for archive files (`jkYYYY.txt` / `.zip`). Separate from `driveFolderId`.
+`state.archiveFolderId` — Drive folder ID for archive files (`jkYYYY.txt` / `.zip`). Separate from `driveFolderId`. Not in the original state shape — added by a migration guard (`if (state.archiveFolderId === undefined)`) on load.
 
 **Entry shapes (in-memory vs. localStorage):**
 
