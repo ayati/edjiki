@@ -79,9 +79,10 @@ The script is organized into named sections separated by `// ========== Section 
 | **Toast** | `toast(msg)` — creates `.toast` div, auto-removes after 3.5 s |
 | **Drive** | GSI token client; scope is `drive.file` normally, `drive` when `state.drivePinnedFileId` or `CONFIG_FILE_ID` is set; `driveSave` checks `modifiedTime` before upload and prompts merge on conflict; `driveLoad` merges remote into local; both blocked when locked; `driveSignOut` clears token and resets UI; `driveDirty` flag + `updateDriveDirtyUI()` shows/hides the ☁ header button |
 | **UI wire** | Event listeners, keyboard shortcuts, online/offline banner, `beforeunload`/`visibilitychange` flush |
-| **Settings** | Color theme (7 presets: 自動/ダーク/ライト/セピア/さくら/ブルー/ノルド), font (12 families), font-size (12–24 px), line-height, `daysToKeep` (default 60, controls archive cut-off) — stored separately in `localStorage["edjiki.settings"]`, applied via CSS custom properties on `<html>`; opened via ⚙ header button |
+| **Settings** | Color theme (7 presets: 自動/ダーク/ライト/セピア/さくら/ブルー/ノルド), font (12 families), font-size (12–24 px), line-height, `daysToKeep` (default 60), `lineEnding` (LF/CRLF), `dateSep` (`/` or `-`) — stored separately in `localStorage["edjiki.settings"]`, applied via CSS custom properties on `<html>`; opened via ⚙ header button |
 | **Drive Settings** | `openDriveSettings` / `closeDriveSettings` — side panel opened from ⋯ menu; `showDriveFolderDialog` / `showDriveFileDialog` / `showArchiveFolderDialog` — parse Google Drive URLs to extract folder/file IDs, update `state.driveFolderId` / `state.drivePinnedFileId` / `state.archiveFolderId` |
-| **Archive** | `createZipBlob(files)` — pure-JS ZIP writer (CRC32 + `CompressionStream('deflate-raw')` with STORE fallback, no CDN); `archiveAndTruncate()` → `_executeArchive(stats)` — for each year: downloads existing `jkY.txt` from `state.archiveFolderId`, merges with new cut entries (ensuring no gaps from Jan 1), re-uploads `jkY.txt` + `jkY.zip` to archive folder, then removes successfully archived entries from state; locked entries skip archive but stay in current data; Drive upload uses generic `driveUploadToFolder` / `driveFindInFolder` helpers |
+| **Archive** | `createZipBlob(files)` — pure-JS ZIP writer (CRC32 + `CompressionStream('deflate-raw')` with STORE fallback, no CDN); `archiveAndTruncate()` → `_executeArchive(stats)` — for each year: downloads existing `jkY.txt` from `state.archiveFolderId`, merges with new cut entries (ensuring no gaps from Jan 1), re-uploads `jkY.txt` + `jkY.zip` to archive folder, then removes successfully archived entries from state; locked entries skip archive but stay in current data; Drive upload uses generic `driveUploadToFolder` / `driveFindInFolder` helpers; clears `archiveCache` on completion |
+| **Archive Search** | `listArchiveFiles()` — Drive API list of `jk*.txt` in `state.archiveFolderId`; `searchArchives(query)` — downloads missing files, caches parsed entries in `archiveCache` (`{ fileId: {name, entries[]} }`), applies `matchQuery`; `renderArchiveSection()` — renders trigger button / loading / results below `<main>`; results are read-only cards with an import button; `archiveCache` is cleared on `driveSignOut` and after `_executeArchive`; result list DOM rebuild is skipped when state+count+query are unchanged (`list.dataset.renderKey`) |
 
 ### State shape
 
@@ -93,6 +94,7 @@ The script is organized into named sections separated by `// ========== Section 
   driveFileName: "edjiki.txt",
   driveFolderId: "<id>" | null, // save folder (null = My Drive root)
   drivePinnedFileId: "<id>" | null, // explicit file ID set by user or config; expands scope to `drive`
+  driveFolderName: "<name>" | null, // fetched from Drive API; displayed in header
   driveModifiedTime: "<ISO>" | null,
   cryptoSalt: "<Base64>",       // present when version === 2
   cryptoVerifier: { iv, ct },   // AES-GCM encrypted "edjiki-verified", for password check
@@ -141,6 +143,7 @@ Header regex: `^(\d{4})\/(\d{2})\/(\d{2}) (-?)(\d{2}):(\d{2}):(\d{2})(?: (.*))?$
 - `driveDirty` (in-memory boolean) is set to `true` on any edit/add/delete/import; cleared on successful `driveSave` or `driveLoad`. `updateDriveDirtyUI()` shows/hides `#btn-drive-dirty` (the ☁ header button) based on `driveDirty && !!window.EDJIKI_CLIENT_ID`.
 - `driveUpload()` omits `name` from metadata when updating an existing file (PATCH) to avoid renaming it. `name` is only sent on initial file creation (POST).
 - `state.driveFolderId` is used by `driveFindByName()` and `driveUpload()` as the parent folder. `state.drivePinnedFileId` forces a specific file ID and widens the OAuth scope to `drive` (full access).
+- `archiveCache` (in-memory, `{}` on init) caches downloaded archive file contents as parsed entries. Cleared on `driveSignOut()` and after `_executeArchive()`. Never persisted.
 
 ## Known constraints
 
@@ -152,3 +155,5 @@ Header regex: `^(\d{4})\/(\d{2})\/(\d{2}) (-?)(\d{2}):(\d{2}):(\d{2})(?: (.*))?$
 | `file://` protocol unsupported | OAuth requires HTTP; always use the local server |
 | Password loss is unrecoverable | Private entries cannot be restored; Drive saves are plaintext `.txt` |
 | Drive operations blocked when locked | Must unlock (enter password) before saving/loading from Drive |
+| Undo stack resets on page reload | In-memory only; returns to 0 steps after reload |
+| Shift-JIS output not supported | Export (download / Drive save) is always UTF-8; only import auto-detects Shift-JIS |

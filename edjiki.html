@@ -555,6 +555,53 @@ main {
   overflow: hidden;
   flex-shrink: 0;
 }
+/* Archive search results */
+#archive-results-section {
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 12px 100px;
+}
+main.has-archive-section { padding-bottom: 12px; }
+.archive-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 4px;
+  border-top: 1px solid var(--border);
+}
+.archive-results-header {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 6px 0;
+}
+.archive-result {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--muted);
+  border-radius: 6px;
+  margin-bottom: 2px;
+  overflow: hidden;
+}
+.archive-result.private { border-left-color: var(--private); }
+.archive-result-head {
+  display: flex;
+  align-items: center;
+  padding: 3px 6px 2px;
+  border-bottom: 1px solid var(--border);
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.archive-result-body {
+  padding: 5px 10px 8px;
+  font-family: var(--entry-font-family, 'BIZ UDPGothic', sans-serif);
+  font-size: var(--entry-font-size, 16px);
+  line-height: var(--entry-line-height, 1.6);
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--fg);
+}
 /* Fullscreen mode */
 .entry-fullscreen-btn {
   background: none;
@@ -794,6 +841,10 @@ body.fullscreen-mode main { padding: 0; max-width: 100%; }
   <button id="btn-search-close">✕</button>
 </div>
 <main id="entries"></main>
+<div id="archive-results-section" class="hidden">
+  <div class="archive-search-bar" id="archive-search-trigger"></div>
+  <div id="archive-results-list"></div>
+</div>
 <button class="fab" id="fab" title="新規エントリ">＋</button>
 <input type="file" id="file-input" accept=".txt,text/plain" class="hidden">
 <div class="pw-overlay hidden" id="pw-overlay">
@@ -1399,6 +1450,7 @@ function render() {
       window.scrollTo(0, sy);
     }
   });
+  renderArchiveSection();
 }
 function buildOnboardingCard() {
   if (!window.EDJIKI_CLIENT_ID) {
@@ -1732,6 +1784,169 @@ function matchQuery(e, q) {
   return false;
 }
 
+// ========== Archive Search ==========
+let archiveCache = {}; // { fileId: { name, entries[] } }
+let archiveSearchResults = []; // [{ entry, sourceName }]
+let archiveSearchState = "idle"; // "idle" | "loading" | "done" | "error"
+
+async function listArchiveFiles() {
+  if (!state.archiveFolderId) return [];
+  const q = `'${state.archiveFolderId}' in parents and trashed=false and mimeType='text/plain'`;
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&orderBy=name`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!res.ok) throw new Error(`Drive API エラー ${res.status}`);
+  const data = await res.json();
+  return (data.files || []).filter(f => /^jk\d{4}\.txt$/i.test(f.name));
+}
+
+async function searchArchives(query) {
+  archiveSearchState = "loading";
+  archiveSearchResults = [];
+  renderArchiveSection();
+  try {
+    const files = await listArchiveFiles();
+    for (let i = 0; i < files.length; i++) {
+      if (archiveSearchState !== "loading") return; // クエリ変更による中断
+      const { id, name } = files[i];
+      if (!archiveCache[id]) {
+        toast(`アーカイブ検索中... (${i + 1}/${files.length})`);
+        const content = await driveDownload(id);
+        archiveCache[id] = { name, entries: parseTxt(content) };
+      }
+      const matched = archiveCache[id].entries.filter(e => matchQuery(e, query));
+      archiveSearchResults.push(...matched.map(e => ({ entry: e, sourceName: name })));
+    }
+    archiveSearchState = "done";
+  } catch (err) {
+    archiveSearchState = "error";
+    toast("アーカイブ検索失敗: " + err.message);
+  }
+  renderArchiveSection();
+}
+
+function buildArchiveResultCard(entry, sourceName) {
+  const card = document.createElement("div");
+  card.className = "archive-result" + (entry.private ? " private" : "");
+
+  const head = document.createElement("div");
+  head.className = "archive-result-head";
+
+  const timeEl = document.createElement("span");
+  timeEl.textContent = fmtDisplay(entry.time);
+
+  const spacer = document.createElement("span");
+  spacer.style.flex = "1";
+
+  const srcBadge = document.createElement("span");
+  srcBadge.className = "badge";
+  srcBadge.textContent = sourceName;
+
+  const importBtn = document.createElement("button");
+  importBtn.style.cssText = "font-size:11px;padding:2px 8px;min-height:22px";
+  importBtn.textContent = "インポート";
+  importBtn.addEventListener("click", () => {
+    pushUndo();
+    state.entries = mergeEntries(state.entries, [entry]);
+    driveDirty = true; updateDriveDirtyUI();
+    saveLocal(true);
+    render();
+    importBtn.textContent = "✓ 済";
+    importBtn.disabled = true;
+    toast("1件インポートしました");
+  });
+
+  head.appendChild(timeEl);
+  if (entry.private) {
+    const p = document.createElement("span");
+    p.style.cssText = "font-size:11px;color:var(--private)";
+    p.textContent = "🔒";
+    head.appendChild(p);
+  }
+  head.appendChild(spacer);
+  head.appendChild(srcBadge);
+  head.appendChild(importBtn);
+
+  const body = document.createElement("div");
+  body.className = "archive-result-body";
+  body.textContent = entry.text || "";
+
+  card.appendChild(head);
+  card.appendChild(body);
+  return card;
+}
+
+function renderArchiveSection() {
+  const section = document.getElementById("archive-results-section");
+  const main    = document.getElementById("entries");
+  if (!section) return;
+
+  const q = searchQuery.trim();
+  const available = !!(state.archiveFolderId && window.EDJIKI_CLIENT_ID && q);
+  if (!available) {
+    section.classList.add("hidden");
+    main.classList.remove("has-archive-section");
+    return;
+  }
+  section.classList.remove("hidden");
+  main.classList.add("has-archive-section");
+
+  const trigger = document.getElementById("archive-search-trigger");
+  const list    = document.getElementById("archive-results-list");
+  trigger.innerHTML = "";
+
+  if (archiveSearchState === "idle") {
+    list.innerHTML = "";
+    const btn = document.createElement("button");
+    btn.textContent = "📦 アーカイブも検索";
+    btn.addEventListener("click", () => {
+      const q2 = searchQuery.trim();
+      ensureAuth(() => searchArchives(q2));
+    });
+    trigger.appendChild(btn);
+    return;
+  }
+
+  if (archiveSearchState === "loading") {
+    list.innerHTML = "";
+    const span = document.createElement("span");
+    span.style.cssText = "font-size:12px;color:var(--muted)";
+    span.textContent = "📦 アーカイブを検索中...";
+    trigger.appendChild(span);
+    return;
+  }
+
+  // done or error: 再検索ボタン
+  const reBtn = document.createElement("button");
+  reBtn.style.cssText = "font-size:12px;padding:4px 8px";
+  reBtn.textContent = "📦 再検索";
+  reBtn.addEventListener("click", () => {
+    const q2 = searchQuery.trim();
+    ensureAuth(() => searchArchives(q2));
+  });
+  trigger.appendChild(reBtn);
+
+  // 結果リストは状態・件数・クエリが変わっていなければ再構築しない
+  const listKey = `${archiveSearchState}:${archiveSearchResults.length}:${q}`;
+  if (list.dataset.renderKey === listKey) return;
+  list.dataset.renderKey = listKey;
+  list.innerHTML = "";
+
+  const hdr = document.createElement("div");
+  hdr.className = "archive-results-header";
+  hdr.textContent = archiveSearchState === "error"
+    ? "📦 アーカイブ検索でエラーが発生しました"
+    : archiveSearchResults.length > 0
+      ? `📦 アーカイブの検索結果 (${archiveSearchResults.length}件)`
+      : "📦 アーカイブに一致するエントリはありません";
+  list.appendChild(hdr);
+
+  for (const { entry, sourceName } of archiveSearchResults) {
+    list.appendChild(buildArchiveResultCard(entry, sourceName));
+  }
+}
+
 // ========== Download / Import ==========
 function download() {
   const txt = serializeTxt(state);
@@ -2021,6 +2236,7 @@ function driveSignOut() {
     google.accounts.oauth2.revoke(accessToken, () => {});
   }
   accessToken = null;
+  archiveCache = {}; // サインアウト時はアーカイブキャッシュを破棄
   toast("Drive ログアウトしました");
 }
 
@@ -2082,10 +2298,14 @@ document.getElementById("btn-search-close").addEventListener("click", () => {
   $searchBar.classList.add("hidden");
   searchQuery = "";
   $search.value = "";
+  archiveSearchState = "idle";
+  archiveSearchResults = [];
   render();
 });
 $search.addEventListener("input", () => {
   searchQuery = $search.value;
+  archiveSearchState = "idle";
+  archiveSearchResults = [];
   render();
 });
 
@@ -2982,6 +3202,7 @@ function showArchiveConfirm(archivableCount, totalCount, yearRange, hasPrivate, 
 
 // 確認後の実際の処理。pendingAction からも呼ばれる
 async function _executeArchive(stats) {
+  archiveCache = {}; // アーカイブ更新後はキャッシュを無効化
   const { toArchive, toKeep, years } = stats;
   const archivable = toArchive.filter(e => e.text !== null);
   const lockedOld  = toArchive.filter(e => e.text === null);
