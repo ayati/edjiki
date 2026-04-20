@@ -231,6 +231,7 @@ main {
 .badge.offline { background: #622; color: #fcc; }
 .hidden { display: none !important; }
 #btn-drive-dirty { color: var(--accent, #4a90d9); font-size: 18px; }
+#btn-fs-drive-dirty { font-size: 12px; padding: 2px 8px; background: none; border: 1px solid var(--accent); border-radius: 4px; color: var(--accent); cursor: pointer; white-space: nowrap; }
 .entry-locked {
   padding: 10px;
   color: var(--muted);
@@ -780,6 +781,13 @@ body.fullscreen-mode main { padding: 0; max-width: 100%; }
         </label>
       </div>
     </div>
+    <div class="settings-row">
+      <label class="settings-label">操作</label>
+      <label style="font-size:12px;display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="setting-auto-fullscreen">
+        新規作成（✏ ボタン）を集中執筆モードで開く
+      </label>
+    </div>
   </div>
 </div>
 <div class="settings-overlay" id="drive-settings-overlay"></div>
@@ -971,12 +979,12 @@ body.fullscreen-mode main { padding: 0; max-width: 100%; }
       </table>
       <div class="help-section">エントリの操作</div>
       <table class="help-table">
-        <tr><td>作成</td><td>＋新規ボタン・右下の ＋ ボタン（FAB）・Ctrl+D / N / M</td></tr>
+        <tr><td>作成</td><td>＋新規ボタン（通常）・右下の ＋ / ✏ ボタン（FAB）・Ctrl+D / N / M。⚙ → 集中執筆モードを ON にすると FAB が ✏ になり、新規作成と同時に全画面へ入る</td></tr>
         <tr><td>本文編集</td><td>テキストエリアを直接入力。300ms デバウンスで自動保存</td></tr>
         <tr><td>タイムスタンプ</td><td>エントリ上部の日時をクリックで編集（秒単位まで）</td></tr>
         <tr><td>public / private</td><td>エントリ上部のボタンまたは Ctrl+P で切替</td></tr>
         <tr><td>削除</td><td>エントリ上部の ✕ ボタン（確認なし。全画面中は非表示）</td></tr>
-        <tr><td>全画面</td><td>マウス操作: エントリにカーソルを乗せると ⛶ が現れる。スマホ・PC共通: ⋯ メニュー → 全画面モードへ / Ctrl+Enter。終了は ✕ 閉じる または Esc</td></tr>
+        <tr><td>全画面</td><td>マウス: エントリにカーソルを乗せると ⛶ が現れる。スマホ・PC共通: ⋯ → 全画面モードへ / Ctrl+Enter。終了は ✕ 閉じる または Esc。全画面中に Drive 未保存の変更があると ☁ 保存して閉じる ボタンが表示され、1タップで保存して全画面終了できる</td></tr>
         <tr><td>自動削除</td><td>本文を空にしてフォーカスを外すと自動削除</td></tr>
       </table>
       <div class="help-section">検索</div>
@@ -1009,6 +1017,7 @@ body.fullscreen-mode main { padding: 0; max-width: 100%; }
         <tr><td>フォント</td><td>ゴシック・明朝・等幅など 12 書体から選択</td></tr>
         <tr><td>改行コード</td><td>LF（Unix / macOS）または CRLF（Windows）。ダウンロード・Drive 保存に適用</td></tr>
         <tr><td>日付区切り</td><td>YYYY/MM/DD（標準）または YYYY-MM-DD（ISO 8601）。読込時は両方を自動認識</td></tr>
+        <tr><td>集中執筆モード</td><td>ON にすると右下の FAB が ✏ になり、タップで新規作成と同時に全画面モードへ入る。ヘッダの ＋新規 は常に通常モードで追加</td></tr>
       </table>
       <div class="help-section">Drive 設定（⋯ → Drive 設定）</div>
       <table class="help-table">
@@ -1589,6 +1598,19 @@ function renderEntry(e) {
   });
   head.appendChild(privBtn);
 
+  if (isFS) {
+    const fsDirtyBtn = document.createElement("button");
+    fsDirtyBtn.id = "btn-fs-drive-dirty";
+    fsDirtyBtn.textContent = "☁ 保存して閉じる";
+    fsDirtyBtn.title = "Drive に保存して全画面を終了 (Ctrl+Shift+D)";
+    fsDirtyBtn.classList.toggle("hidden", !(driveDirty && window.EDJIKI_CLIENT_ID));
+    fsDirtyBtn.addEventListener("click", () => {
+      _exitFullscreenAfterSave = true;
+      driveSave();
+    });
+    head.appendChild(fsDirtyBtn);
+  }
+
   if (!isFS) {
     const delBtn = document.createElement("button");
     delBtn.className = "entry-delete";
@@ -1772,6 +1794,28 @@ function newEntry() {
   render();
   const node = $entries.querySelector(`[data-id="${e.id}"] textarea`);
   if (node) node.focus();
+}
+function newEntryFullscreen() {
+  if (searchQuery) {
+    searchQuery = "";
+    $search.value = "";
+  }
+  const e = { id: newId(), time: nowIso(), private: false, text: "" };
+  lastFocusedEntry = e;
+  state.entries.unshift(e);
+  driveDirty = true; updateDriveDirtyUI();
+  saveLocal(true);
+  enterFullscreen(e);
+}
+function updateFabUI() {
+  const fab = document.getElementById("fab");
+  if (settings.autoFullscreenOnNew) {
+    fab.textContent = "✏";
+    fab.title = "新規エントリ（集中執筆モード）";
+  } else {
+    fab.textContent = "＋";
+    fab.title = "新規エントリ";
+  }
 }
 
 // ========== Search ==========
@@ -2006,12 +2050,16 @@ let tokenClient = null;
 let accessToken = null;
 let pendingAction = null;
 let driveDirty = false;
+let _exitFullscreenAfterSave = false;
 function updateDriveDirtyUI() {
-  const btn = document.getElementById("btn-drive-dirty");
-  if (window.EDJIKI_CLIENT_ID && driveDirty) {
-    btn.classList.remove("hidden");
-  } else {
-    btn.classList.add("hidden");
+  const btn   = document.getElementById("btn-drive-dirty");
+  const fsBtn = document.getElementById("btn-fs-drive-dirty");
+  const show  = !!(window.EDJIKI_CLIENT_ID && driveDirty);
+  btn.classList.toggle("hidden", !show);
+  if (fsBtn) fsBtn.classList.toggle("hidden", !show);
+  if (!driveDirty && _exitFullscreenAfterSave) {
+    _exitFullscreenAfterSave = false;
+    exitFullscreen();
   }
 }
 
@@ -2242,7 +2290,9 @@ function driveSignOut() {
 
 // ========== UI wire ==========
 document.getElementById("btn-new").addEventListener("click", newEntry);
-document.getElementById("fab").addEventListener("click", newEntry);
+document.getElementById("fab").addEventListener("click", () => {
+  if (settings.autoFullscreenOnNew) newEntryFullscreen(); else newEntry();
+});
 document.getElementById("btn-drive-dirty").addEventListener("click", driveSave);
 document.getElementById("btn-lock").addEventListener("click", async () => {
   if (!cryptoKey) {
@@ -2402,7 +2452,7 @@ const THEMES = [
   { key: "blue-water", label: "ブルー",  bg:"#0d1b2a", fg:"#d0e8f8", muted:"#5a8aaa", accent:"#4fc3f7", border:"#1e3a4f", card:"#122537", private:"#ff9c70", danger:"#ef5350", scheme:"dark"  },
   { key: "nord",       label: "ノルド",  bg:"#2e3440", fg:"#eceff4", muted:"#7b8fa8", accent:"#88c0d0", border:"#434c5e", card:"#3b4252", private:"#ebcb8b", danger:"#bf616a", scheme:"dark"  },
 ];
-const SETTINGS_DEFAULTS = { fontSize: 16, lineHeight: 1.6, fontKey: "biz-ud", theme: "auto", daysToKeep: 60, lineEnding: "LF", dateSep: "/" };
+const SETTINGS_DEFAULTS = { fontSize: 16, lineHeight: 1.6, fontKey: "biz-ud", theme: "auto", daysToKeep: 60, lineEnding: "LF", dateSep: "/", autoFullscreenOnNew: false };
 let settings = (() => {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -2486,6 +2536,7 @@ function openSettings() {
   updateSecurityUI();
   document.getElementById("setting-line-ending").value = settings.lineEnding || "LF";
   document.getElementById("setting-date-sep").value    = settings.dateSep    || "/";
+  document.getElementById("setting-auto-fullscreen").checked = !!settings.autoFullscreenOnNew;
   $settingsPanel.classList.add("open");
   $settingsOverlay.classList.add("open");
 }
@@ -3307,9 +3358,15 @@ document.getElementById("setting-date-sep").addEventListener("change", (ev) => {
   settings.dateSep = ev.target.value;
   saveSettings();
 });
+document.getElementById("setting-auto-fullscreen").addEventListener("change", (ev) => {
+  settings.autoFullscreenOnNew = ev.target.checked;
+  saveSettings();
+  updateFabUI();
+});
 document.getElementById("btn-archive").addEventListener("click", () => archiveAndTruncate());
 
 updateLockBtn();
+updateFabUI();
 render();
 if (state.cryptoVerifier && !cryptoKey) {
   showPasswordModal("unlock");
