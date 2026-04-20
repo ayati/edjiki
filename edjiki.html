@@ -230,8 +230,23 @@ main {
 }
 .badge.offline { background: #622; color: #fcc; }
 .hidden { display: none !important; }
-#btn-drive-dirty { color: var(--accent, #4a90d9); font-size: 18px; }
-#btn-fs-drive-dirty { font-size: 12px; padding: 2px 8px; background: none; border: 1px solid var(--accent); border-radius: 4px; color: var(--accent); cursor: pointer; white-space: nowrap; }
+.drive-status {
+  font-size: 12px;
+  padding: 3px 8px;
+  border: none;
+  background: none;
+  border-radius: 4px;
+  cursor: default;
+  font-family: inherit;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.drive-status.ds-saving  { color: var(--accent); }
+.drive-status.ds-saved   { color: var(--accent); }
+.drive-status.ds-error   { color: var(--danger); cursor: pointer; }
+.drive-status.ds-error:hover { text-decoration: underline; }
+.drive-status.ds-pending { color: var(--accent); cursor: pointer; font-size: 16px; opacity: 0.7; }
+.drive-status.ds-pending:hover { opacity: 1; }
 .entry-locked {
   padding: 10px;
   color: var(--muted);
@@ -665,7 +680,7 @@ body.fullscreen-mode main { padding: 0; max-width: 100%; }
   <button id="btn-search" title="検索 (Ctrl+F)">🔍</button>
   <button id="btn-new" title="新規 (Ctrl+D / N / M)">＋<span class="label-full">新規</span></button>
   <button id="btn-lock" class="hidden" title="ロック / 解除">🔐</button>
-  <button id="btn-drive-dirty" class="hidden" title="Drive に未保存の変更があります (Ctrl+Shift+D)">☁</button>
+  <button id="drive-status" class="drive-status hidden" title="Drive 保存状態"></button>
   <button id="btn-settings" title="設定">⚙</button>
   <button id="btn-menu" title="メニュー">⋯</button>
 </header>
@@ -786,6 +801,10 @@ body.fullscreen-mode main { padding: 0; max-width: 100%; }
       <label style="font-size:12px;display:flex;align-items:center;gap:8px;cursor:pointer">
         <input type="checkbox" id="setting-auto-fullscreen">
         新規作成（✏ ボタン）を集中執筆モードで開く
+      </label>
+      <label id="setting-drive-autosave-row" style="font-size:12px;display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="setting-drive-autosave">
+        Drive へ自動保存（入力停止30秒後・アプリ切替時・全画面終了時）
       </label>
     </div>
   </div>
@@ -961,8 +980,8 @@ body.fullscreen-mode main { padding: 0; max-width: 100%; }
         <tr><td>＋新規</td><td>新規エントリを先頭に追加</td></tr>
         <tr><td>🔍</td><td>検索バーを開く</td></tr>
         <tr><td>🔐 / 🔓</td><td>パスワード解除 / ロック（パスワード設定時のみ表示）</td></tr>
-        <tr><td>☁</td><td>Drive に未保存の変更あり → クリックで即時保存</td></tr>
-        <tr><td>⚙</td><td>設定パネルを開く（テーマ・フォント・ファイル形式・セキュリティ）</td></tr>
+        <tr><td>保存中... / ✓ / ✕</td><td>Drive 自動保存のステータス表示。☁ はまだ Drive 未認証で未保存あり → タップで認証＆保存。✕ は保存失敗 → タップで再試行</td></tr>
+        <tr><td>⚙</td><td>設定パネルを開く（テーマ・フォント・ファイル形式・セキュリティ・自動保存）</td></tr>
         <tr><td>⋯</td><td>メニュー（ダウンロード・インポート・Drive 操作・設定・ヘルプ）</td></tr>
       </table>
       <div class="help-section">キーボードショートカット</div>
@@ -984,7 +1003,7 @@ body.fullscreen-mode main { padding: 0; max-width: 100%; }
         <tr><td>タイムスタンプ</td><td>エントリ上部の日時をクリックで編集（秒単位まで）</td></tr>
         <tr><td>public / private</td><td>エントリ上部のボタンまたは Ctrl+P で切替</td></tr>
         <tr><td>削除</td><td>エントリ上部の ✕ ボタン（確認なし。全画面中は非表示）</td></tr>
-        <tr><td>全画面</td><td>マウス: エントリにカーソルを乗せると ⛶ が現れる。スマホ・PC共通: ⋯ → 全画面モードへ / Ctrl+Enter。終了は ✕ 閉じる または Esc。全画面中に Drive 未保存の変更があると ☁ 保存して閉じる ボタンが表示され、1タップで保存して全画面終了できる</td></tr>
+        <tr><td>全画面</td><td>マウス: エントリにカーソルを乗せると ⛶ が現れる。スマホ・PC共通: ⋯ → 全画面モードへ / Ctrl+Enter。終了は ✕ 閉じる または Esc。全画面を終了すると Drive への自動保存が実行される（認証済み・自動保存 ON 時）</td></tr>
         <tr><td>自動削除</td><td>本文を空にしてフォーカスを外すと自動削除</td></tr>
       </table>
       <div class="help-section">検索</div>
@@ -995,7 +1014,9 @@ body.fullscreen-mode main { padding: 0; max-width: 100%; }
       </table>
       <div class="help-section">Google Drive 連携</div>
       <table class="help-table">
-        <tr><td>保存</td><td>⋯ → Drive に保存 / Ctrl+Shift+D / ☁ ボタン</td></tr>
+        <tr><td>自動保存</td><td>入力が止まって30秒後・アプリ切替時・全画面終了時に自動で Drive へ保存（認証済み・⚙ の「Drive 自動保存」ON 時）。ヘッダに「保存中...」→「✓ 保存済」が表示される</td></tr>
+        <tr><td>初回認証</td><td>セッション開始後 Drive 未認証の状態で変更があると ☁ がヘッダに表示される → タップで OAuth 認証＆保存。以降はセッション中（約1時間）自動保存が有効になる</td></tr>
+        <tr><td>手動保存</td><td>⋯ → Drive に保存 / Ctrl+Shift+D</td></tr>
         <tr><td>読込</td><td>⋯ → Drive から読込（ローカルとマージ）</td></tr>
         <tr><td>競合時</td><td>Drive 側が更新済みなら確認ダイアログ → マージして保存</td></tr>
         <tr><td>保存先変更</td><td>⋯ → Drive 設定 → 保存先フォルダを設定</td></tr>
@@ -1018,6 +1039,7 @@ body.fullscreen-mode main { padding: 0; max-width: 100%; }
         <tr><td>改行コード</td><td>LF（Unix / macOS）または CRLF（Windows）。ダウンロード・Drive 保存に適用</td></tr>
         <tr><td>日付区切り</td><td>YYYY/MM/DD（標準）または YYYY-MM-DD（ISO 8601）。読込時は両方を自動認識</td></tr>
         <tr><td>集中執筆モード</td><td>ON にすると右下の FAB が ✏ になり、タップで新規作成と同時に全画面モードへ入る。ヘッダの ＋新規 は常に通常モードで追加</td></tr>
+        <tr><td>Drive 自動保存</td><td>ON（デフォルト）にすると入力停止30秒後・アプリ切替時・全画面終了時に Drive へ自動保存。Drive 未設定時は無効</td></tr>
       </table>
       <div class="help-section">Drive 設定（⋯ → Drive 設定）</div>
       <table class="help-table">
@@ -1139,7 +1161,7 @@ function pushUndo() {
 function undo() {
   if (undoStack.length === 0) { toast("元に戻す履歴がありません"); return; }
   state.entries = undoStack.pop();
-  driveDirty = true; updateDriveDirtyUI();
+  driveDirty = true; scheduleDriveAutoSave(); updateDriveStatusUI();
   saveLocal(true);
   render();
   updateUndoUI();
@@ -1592,24 +1614,11 @@ function renderEntry(e) {
   privBtn.addEventListener("click", () => {
     if (!canTogglePrivate) return;
     e.private = !e.private;
-    driveDirty = true; updateDriveDirtyUI();
+    driveDirty = true; scheduleDriveAutoSave(); updateDriveStatusUI();
     saveLocal(true);
     render();
   });
   head.appendChild(privBtn);
-
-  if (isFS) {
-    const fsDirtyBtn = document.createElement("button");
-    fsDirtyBtn.id = "btn-fs-drive-dirty";
-    fsDirtyBtn.textContent = "☁ 保存して閉じる";
-    fsDirtyBtn.title = "Drive に保存して全画面を終了 (Ctrl+Shift+D)";
-    fsDirtyBtn.classList.toggle("hidden", !(driveDirty && window.EDJIKI_CLIENT_ID));
-    fsDirtyBtn.addEventListener("click", () => {
-      _exitFullscreenAfterSave = true;
-      driveSave();
-    });
-    head.appendChild(fsDirtyBtn);
-  }
 
   if (!isFS) {
     const delBtn = document.createElement("button");
@@ -1619,7 +1628,7 @@ function renderEntry(e) {
     delBtn.addEventListener("click", () => {
       pushUndo();
       state.entries = state.entries.filter(x => x.id !== e.id);
-      driveDirty = true; updateDriveDirtyUI();
+      driveDirty = true; scheduleDriveAutoSave(); updateDriveStatusUI();
       saveLocal(true);
       render();
     });
@@ -1665,7 +1674,7 @@ function renderEntry(e) {
   ta.addEventListener("input", () => {
     e.text = ta.value;
     if (!isFS) autoResize(ta);
-    driveDirty = true; updateDriveDirtyUI();
+    driveDirty = true; scheduleDriveAutoSave(); updateDriveStatusUI();
     saveLocal();
   });
   ta.addEventListener("blur", () => {
@@ -1716,7 +1725,7 @@ function editTime(e, span) {
     const m = input.value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
     if (m) {
       e.time = isoFromParts(m[1], m[2], m[3], m[4], m[5], m[6] || "00");
-      driveDirty = true; updateDriveDirtyUI();
+      driveDirty = true; scheduleDriveAutoSave(); updateDriveStatusUI();
       saveLocal(true);
     }
     render();
@@ -1754,6 +1763,12 @@ function enterFullscreen(e) {
 }
 function exitFullscreen() {
   if (!fullscreenEntryId) return;
+  // 全画面終了時に自動保存（認証済み・オンライン・非ロック時のみ）
+  if (driveDirty && accessToken && settings.driveAutoSave
+      && navigator.onLine && !(state.cryptoVerifier && !cryptoKey)
+      && driveAutoSaveStatus !== "saving") {
+    driveSave({ silent: true });
+  }
   _fullscreenPending = true;
   const entId = fullscreenEntryId;
   // DOM撤去前にテキストをスナップショット（blur が stale value を返す場合に備える）
@@ -1789,7 +1804,7 @@ function newEntry() {
   const e = { id: newId(), time: nowIso(), private: false, text: "" };
   lastFocusedEntry = e;
   state.entries.unshift(e);
-  driveDirty = true; updateDriveDirtyUI();
+  driveDirty = true; scheduleDriveAutoSave(); updateDriveStatusUI();
   saveLocal(true);
   render();
   const node = $entries.querySelector(`[data-id="${e.id}"] textarea`);
@@ -1803,7 +1818,7 @@ function newEntryFullscreen() {
   const e = { id: newId(), time: nowIso(), private: false, text: "" };
   lastFocusedEntry = e;
   state.entries.unshift(e);
-  driveDirty = true; updateDriveDirtyUI();
+  driveDirty = true; scheduleDriveAutoSave(); updateDriveStatusUI();
   saveLocal(true);
   enterFullscreen(e);
 }
@@ -1893,7 +1908,7 @@ function buildArchiveResultCard(entry, sourceName) {
   importBtn.addEventListener("click", () => {
     pushUndo();
     state.entries = mergeEntries(state.entries, [entry]);
-    driveDirty = true; updateDriveDirtyUI();
+    driveDirty = true; scheduleDriveAutoSave(); updateDriveStatusUI();
     saveLocal(true);
     render();
     importBtn.textContent = "✓ 済";
@@ -2021,7 +2036,7 @@ document.getElementById("file-input").addEventListener("change", async (ev) => {
     const txt = detectAndDecode(buf);
     const imported = parseTxt(txt);
     state.entries = mergeEntries(state.entries, imported);
-    driveDirty = true; updateDriveDirtyUI();
+    driveDirty = true; scheduleDriveAutoSave(); updateDriveStatusUI();
     saveLocal(true);
     render();
     toast(`${imported.length} 件読込 (マージ済)`);
@@ -2050,16 +2065,57 @@ let tokenClient = null;
 let accessToken = null;
 let pendingAction = null;
 let driveDirty = false;
-let _exitFullscreenAfterSave = false;
-function updateDriveDirtyUI() {
-  const btn   = document.getElementById("btn-drive-dirty");
-  const fsBtn = document.getElementById("btn-fs-drive-dirty");
-  const show  = !!(window.EDJIKI_CLIENT_ID && driveDirty);
-  btn.classList.toggle("hidden", !show);
-  if (fsBtn) fsBtn.classList.toggle("hidden", !show);
-  if (!driveDirty && _exitFullscreenAfterSave) {
-    _exitFullscreenAfterSave = false;
-    exitFullscreen();
+
+// 自動保存
+let driveAutoSaveTimer  = null;
+let driveAutoSaveStatus = "idle"; // "idle" | "saving" | "saved" | "error"
+let _driveStatusFadeTimer = null;
+
+function scheduleDriveAutoSave() {
+  if (!window.EDJIKI_CLIENT_ID) return;
+  if (!settings.driveAutoSave) return;
+  clearTimeout(driveAutoSaveTimer);
+  driveAutoSaveTimer = setTimeout(() => {
+    if (!driveDirty) return;
+    if (driveAutoSaveStatus === "saving") return;
+    if (!navigator.onLine) return;
+    if (!accessToken) return;
+    if (state.cryptoVerifier && !cryptoKey) return;
+    driveSave({ silent: true });
+  }, 30_000);
+}
+
+function updateDriveStatusUI() {
+  const el = document.getElementById("drive-status");
+  if (!el) return;
+  if (!window.EDJIKI_CLIENT_ID) { el.classList.add("hidden"); return; }
+
+  clearTimeout(_driveStatusFadeTimer);
+  el.className = "drive-status";
+  el.disabled = false;
+
+  if (driveAutoSaveStatus === "saving") {
+    el.textContent = "保存中...";
+    el.classList.add("ds-saving");
+    el.disabled = true;
+  } else if (driveAutoSaveStatus === "saved") {
+    el.textContent = "✓ 保存済";
+    el.classList.add("ds-saved");
+    el.disabled = true;
+    _driveStatusFadeTimer = setTimeout(() => {
+      driveAutoSaveStatus = "idle";
+      updateDriveStatusUI();
+    }, 3000);
+  } else if (driveAutoSaveStatus === "error") {
+    el.textContent = "✕ 保存失敗（タップで再試行）";
+    el.classList.add("ds-error");
+  } else if (driveDirty && !accessToken) {
+    // 未認証・未保存: タップして認証→保存を促す
+    el.textContent = "☁";
+    el.title = "Drive に未保存の変更があります（タップで保存）";
+    el.classList.add("ds-pending");
+  } else {
+    el.classList.add("hidden");
   }
 }
 
@@ -2120,9 +2176,10 @@ function ensureAuth(next) {
   pendingAction = next;
   tokenClient.requestAccessToken({ prompt: "" });
 }
-async function driveGetMeta(id) {
+async function driveGetMeta(id, { keepalive = false } = {}) {
   const res = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=id,modifiedTime,name`, {
-    headers: { Authorization: `Bearer ${accessToken}` }
+    headers: { Authorization: `Bearer ${accessToken}` },
+    keepalive,
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Drive API エラー ${res.status}`);
@@ -2145,7 +2202,7 @@ async function driveFindByName() {
   const data = await res.json();
   return data.files && data.files[0];
 }
-async function driveUpload() {
+async function driveUpload({ keepalive = false } = {}) {
   const content = serializeTxt(state);
   // 新規作成時のみ name を指定（既存ファイル更新時に name を送るとリネームされてしまう）
   const metadata = state.driveFileId
@@ -2170,15 +2227,21 @@ async function driveUpload() {
       "Content-Type": `multipart/related; boundary=${boundary}`,
     },
     body,
+    keepalive,
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
-function driveSave() {
+function driveSave({ silent = false } = {}) {
+  if (driveAutoSaveStatus === "saving") return;
   if (state.cryptoVerifier && !cryptoKey) {
-    toast("Drive 操作にはパスワード解除が必要です");
+    if (!silent) toast("Drive 操作にはパスワード解除が必要です");
     return;
   }
+  driveAutoSaveStatus = "saving";
+  updateDriveStatusUI();
+  // silent(自動保存)時は keepalive:true でバックグラウンド中断を防ぐ
+  const keepalive = silent;
   ensureAuth(async () => {
     try {
       // ファイルIDが無ければ name で探す
@@ -2190,27 +2253,36 @@ function driveSave() {
           if (found.name) state.driveFileName = found.name;
         }
       }
-      // 競合チェック
+      // 競合チェック（silentでも競合は確認する）
       if (state.driveFileId && state.driveModifiedTime) {
-        const meta = await driveGetMeta(state.driveFileId);
+        const meta = await driveGetMeta(state.driveFileId, { keepalive });
         if (meta && meta.modifiedTime !== state.driveModifiedTime) {
-          if (!confirm("Drive 側が更新されています。\n[OK] マージして保存 / [キャンセル] 中止")) return;
+          if (!confirm("Drive 側が更新されています。\n[OK] マージして保存 / [キャンセル] 中止")) {
+            driveAutoSaveStatus = "idle";
+            updateDriveStatusUI();
+            return;
+          }
           const remote = await driveDownload(state.driveFileId);
           const parsed = parseTxt(remote);
           state.entries = mergeEntries(state.entries, parsed);
           render();
         }
       }
-      const file = await driveUpload();
+      const file = await driveUpload({ keepalive });
       state.driveFileId = file.id;
       state.driveModifiedTime = file.modifiedTime;
       if (file.name) state.driveFileName = file.name;
-      driveDirty = false; updateDriveDirtyUI();
+      driveDirty = false;
+      clearTimeout(driveAutoSaveTimer);
+      driveAutoSaveStatus = "saved";
+      updateDriveStatusUI();
       saveLocal(true);
       updateTitle();
-      toast("Drive に保存しました");
+      if (!silent) toast("Drive に保存しました");
     } catch (e) {
-      toast("Drive 保存失敗: " + e.message);
+      driveAutoSaveStatus = "error";
+      updateDriveStatusUI();
+      if (!silent) toast("Drive 保存失敗: " + e.message);
     }
   });
 }
@@ -2235,7 +2307,10 @@ function driveLoad() {
       state.driveModifiedTime = meta.modifiedTime;
       if (meta.name) state.driveFileName = meta.name;
       state.entries = mergeEntries(state.entries, imported);
-      driveDirty = false; updateDriveDirtyUI();
+      driveDirty = false;
+      clearTimeout(driveAutoSaveTimer);
+      driveAutoSaveStatus = "idle";
+      updateDriveStatusUI();
       saveLocal(true);
       render();
       toast(`Drive から ${imported.length} 件読込 (マージ済)`);
@@ -2285,6 +2360,8 @@ function driveSignOut() {
   }
   accessToken = null;
   archiveCache = {}; // サインアウト時はアーカイブキャッシュを破棄
+  driveAutoSaveStatus = "idle";
+  updateDriveStatusUI(); // dirty なら ☁ pending 表示に切り替わる
   toast("Drive ログアウトしました");
 }
 
@@ -2293,7 +2370,9 @@ document.getElementById("btn-new").addEventListener("click", newEntry);
 document.getElementById("fab").addEventListener("click", () => {
   if (settings.autoFullscreenOnNew) newEntryFullscreen(); else newEntry();
 });
-document.getElementById("btn-drive-dirty").addEventListener("click", driveSave);
+document.getElementById("drive-status").addEventListener("click", () => {
+  if (driveAutoSaveStatus === "error" || driveDirty) driveSave();
+});
 document.getElementById("btn-lock").addEventListener("click", async () => {
   if (!cryptoKey) {
     showPasswordModal("unlock");
@@ -2424,7 +2503,14 @@ updateOnline();
 // Flush on visibility change
 window.addEventListener("beforeunload", () => saveLocal(true));
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "hidden") saveLocal(true);
+  if (document.visibilityState === "hidden") {
+    saveLocal(true);
+    if (driveDirty && accessToken && settings.driveAutoSave
+        && navigator.onLine && !(state.cryptoVerifier && !cryptoKey)
+        && driveAutoSaveStatus !== "saving") {
+      driveSave({ silent: true });
+    }
+  }
 });
 
 // ========== Settings ==========
@@ -2452,7 +2538,7 @@ const THEMES = [
   { key: "blue-water", label: "ブルー",  bg:"#0d1b2a", fg:"#d0e8f8", muted:"#5a8aaa", accent:"#4fc3f7", border:"#1e3a4f", card:"#122537", private:"#ff9c70", danger:"#ef5350", scheme:"dark"  },
   { key: "nord",       label: "ノルド",  bg:"#2e3440", fg:"#eceff4", muted:"#7b8fa8", accent:"#88c0d0", border:"#434c5e", card:"#3b4252", private:"#ebcb8b", danger:"#bf616a", scheme:"dark"  },
 ];
-const SETTINGS_DEFAULTS = { fontSize: 16, lineHeight: 1.6, fontKey: "biz-ud", theme: "auto", daysToKeep: 60, lineEnding: "LF", dateSep: "/", autoFullscreenOnNew: false };
+const SETTINGS_DEFAULTS = { fontSize: 16, lineHeight: 1.6, fontKey: "biz-ud", theme: "auto", daysToKeep: 60, lineEnding: "LF", dateSep: "/", autoFullscreenOnNew: false, driveAutoSave: true };
 let settings = (() => {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -2537,6 +2623,11 @@ function openSettings() {
   document.getElementById("setting-line-ending").value = settings.lineEnding || "LF";
   document.getElementById("setting-date-sep").value    = settings.dateSep    || "/";
   document.getElementById("setting-auto-fullscreen").checked = !!settings.autoFullscreenOnNew;
+  const driveAutoSaveRow = document.getElementById("setting-drive-autosave-row");
+  const driveAutoSaveCb  = document.getElementById("setting-drive-autosave");
+  driveAutoSaveCb.checked = !!settings.driveAutoSave;
+  driveAutoSaveRow.style.opacity = window.EDJIKI_CLIENT_ID ? "" : "0.4";
+  driveAutoSaveCb.disabled = !window.EDJIKI_CLIENT_ID;
   $settingsPanel.classList.add("open");
   $settingsOverlay.classList.add("open");
 }
@@ -3292,7 +3383,7 @@ async function _executeArchive(stats) {
   // 成功した年のエントリのみ削除。失敗年分とロック中は現行データに残す
   const failedEntries = archivable.filter(e => failedYears.has(new Date(e.time).getFullYear()));
   state.entries = [...toKeep, ...lockedOld, ...failedEntries];
-  driveDirty = true; updateDriveDirtyUI();
+  driveDirty = true; scheduleDriveAutoSave(); updateDriveStatusUI();
   await saveLocal(true);
   render();
   updateArchiveUI();
@@ -3362,6 +3453,11 @@ document.getElementById("setting-auto-fullscreen").addEventListener("change", (e
   settings.autoFullscreenOnNew = ev.target.checked;
   saveSettings();
   updateFabUI();
+});
+document.getElementById("setting-drive-autosave").addEventListener("change", (ev) => {
+  settings.driveAutoSave = ev.target.checked;
+  saveSettings();
+  if (!settings.driveAutoSave) clearTimeout(driveAutoSaveTimer);
 });
 document.getElementById("btn-archive").addEventListener("click", () => archiveAndTruncate());
 
