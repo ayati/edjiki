@@ -148,6 +148,24 @@ Header regex: `^(\d{4})\/(\d{2})\/(\d{2}) (-?)(\d{2}):(\d{2}):(\d{2})(?: (.*))?$
 - `state.driveFolderId` is used by `driveFindByName()` and `driveUpload()` as the parent folder. `state.drivePinnedFileId` forces a specific file ID and widens the OAuth scope to `drive` (full access).
 - `archiveCache` (in-memory, `{}` on init) caches downloaded archive file contents as parsed entries. Cleared on `driveSignOut()` and after `_executeArchive()`. Never persisted.
 
+### Settings shape
+
+Persisted to `localStorage["edjiki.settings"]` as JSON. Independent of diary data.
+
+```js
+{
+  theme: "auto",        // "auto" | "dark" | "light" | "sepia" | "sakura" | "blue" | "nord"
+  fontSize: 16,         // 12–24 px
+  lineHeight: 1.6,      // 1.2–2.0
+  fontKey: "biz-ud",    // font preset key
+  daysToKeep: 60,       // archive cutoff threshold
+  lineEnding: "LF",     // "LF" | "CRLF"
+  dateSep: "/",         // "/" | "-"
+  autoFullscreenOnNew: false,
+  driveAutoSave: true
+}
+```
+
 ## Known constraints
 
 | Constraint | Notes |
