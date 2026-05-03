@@ -980,7 +980,7 @@ body.fullscreen-mode main { padding: 0; max-width: 100%; }
         <tr><td>＋新規</td><td>新規エントリを先頭に追加</td></tr>
         <tr><td>🔍</td><td>検索バーを開く</td></tr>
         <tr><td>🔐 / 🔓</td><td>パスワード解除 / ロック（パスワード設定時のみ表示）</td></tr>
-        <tr><td>☁ Drive 接続</td><td>Drive 自動保存が ON だがまだ未接続。タップすると Google 認証が始まります（ページを開いた後、最初に1回だけ必要）</td></tr>
+        <tr><td>☁ Drive 接続</td><td>Drive 自動保存が ON だがまだ未接続。タップすると Google 認証が始まります。未編集なら認証後に Drive から最新を自動取り込み（他端末からの更新を反映）、書きかけがあれば認証＆保存</td></tr>
         <tr><td>保存中... / ✓ / ✕</td><td>Drive 自動保存のステータス。✕ は保存失敗 → タップで再試行</td></tr>
         <tr><td>⚙</td><td>設定パネルを開く（テーマ・フォント・ファイル形式・セキュリティ・自動保存）</td></tr>
         <tr><td>⋯</td><td>メニュー（ダウンロード・インポート・Drive 操作・設定・ヘルプ）</td></tr>
@@ -1017,6 +1017,7 @@ body.fullscreen-mode main { padding: 0; max-width: 100%; }
       <table class="help-table">
         <tr><td>自動保存</td><td>100文字入力ごと・入力停止10秒後・アプリ切替時・画面復帰時・圏外から圏内復帰時に自動で Drive へ保存（認証済み・⚙ の「Drive 自動保存」ON 時）</td></tr>
         <tr><td>接続手順</td><td>ページを開くとヘッダに「☁ Drive 接続」が表示される → タップして Google 認証 → 以降はセッション中（約1時間）自動保存が有効。長時間後に切れた場合も同じボタンで再接続できる</td></tr>
+        <tr><td>起動時同期</td><td>「☁ Drive 接続」を未編集状態でタップすると認証後に Drive から最新を自動取り込み。他端末で書いた内容を意識せず取り込める。書きかけがあるときは認証＆保存に切り替わる（pull したいときはメニュー → Drive から読込）</td></tr>
         <tr><td>ポップアップについて</td><td>ブラウザが「ポップアップがブロックされました」と表示した場合は無視して「☁ Drive 接続」をタップしてください。ポップアップの許可設定は不要です</td></tr>
         <tr><td>手動保存</td><td>⋯ → Drive に保存 / Ctrl+Shift+D</td></tr>
         <tr><td>読込</td><td>⋯ → Drive から読込（ローカルとマージ）</td></tr>
@@ -2277,7 +2278,7 @@ async function driveUpload({ keepalive = false } = {}) {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
-function driveSave({ silent = false, retried = false } = {}) {
+function driveSave({ silent = false, retried = false, keepalive = false } = {}) {
   if (driveAutoSaveStatus === "saving") return;
   if (state.cryptoVerifier && !cryptoKey) {
     if (!silent) toast("Drive 操作にはパスワード解除が必要です");
@@ -2285,8 +2286,8 @@ function driveSave({ silent = false, retried = false } = {}) {
   }
   driveAutoSaveStatus = "saving";
   updateDriveStatusUI();
-  // silent(自動保存)時は keepalive:true でバックグラウンド中断を防ぐ
-  const keepalive = silent;
+  // keepalive はページ離脱時のみ使う（fetch keepalive は本文 64KiB 上限があり、
+  // 通常のフォアグラウンド自動保存で使うとメモが大きいときに必ず失敗するため）
   ensureAuth(async () => {
     try {
       // ファイルIDが無ければ name で探す
@@ -2310,7 +2311,7 @@ function driveSave({ silent = false, retried = false } = {}) {
           const remote = await driveDownload(state.driveFileId);
           const parsed = parseTxt(remote);
           state.entries = mergeEntries(state.entries, parsed);
-          render();
+          safeRender();
         }
       }
       const file = await driveUpload({ keepalive });
@@ -2328,7 +2329,7 @@ function driveSave({ silent = false, retried = false } = {}) {
       if (!silent) toast("Drive に保存しました");
     } catch (e) {
       if (/\b401\b/.test(e.message) && accessToken && !retried) {
-        tryRefreshToken(() => driveSave({ silent, retried: true }));
+        tryRefreshToken(() => driveSave({ silent, retried: true, keepalive }));
         return;
       }
       driveAutoSaveStatus = "error";
@@ -2337,7 +2338,9 @@ function driveSave({ silent = false, retried = false } = {}) {
     }
   });
 }
-function driveLoad({ retried = false } = {}) {
+// initial=true: 起動直後の同期用。リモート未更新ならダウンロードを省略し、
+//                ファイル未発見・トースト文言を「同期」寄りに切り替える。
+function driveLoad({ retried = false, initial = false } = {}) {
   if (state.cryptoVerifier && !cryptoKey) {
     toast("Drive 操作にはパスワード解除が必要です");
     return;
@@ -2348,16 +2351,31 @@ function driveLoad({ retried = false } = {}) {
       let meta = id ? await driveGetMeta(id) : null;
       if (!meta) {
         const found = await driveFindByName();
-        if (!found) { toast("Drive に " + DRIVE_FILENAME + " が見つかりません"); return; }
+        if (!found) {
+          toast(initial ? "Drive 接続しました（保存ファイルはまだありません）"
+                        : "Drive に " + DRIVE_FILENAME + " が見つかりません");
+          return;
+        }
         id = found.id;
         meta = found;
       }
+      // 起動時同期で modifiedTime が一致 = 既に最新 → ダウンロード省略
+      if (initial && state.driveModifiedTime && meta.modifiedTime === state.driveModifiedTime) {
+        state.driveFileId = id;
+        if (meta.name) state.driveFileName = meta.name;
+        saveLocal(true);
+        updateTitle();
+        toast("Drive と同期済み");
+        return;
+      }
+      const before = state.entries.length;
       const txt = await driveDownload(id);
       const imported = parseTxt(txt);
       state.driveFileId = id;
       state.driveModifiedTime = meta.modifiedTime;
       if (meta.name) state.driveFileName = meta.name;
       state.entries = mergeEntries(state.entries, imported);
+      const added = state.entries.length - before;
       driveDirty = false;
       clearTimeout(driveAutoSaveTimer);
       clearTimeout(driveCharSaveTimer);
@@ -2365,16 +2383,17 @@ function driveLoad({ retried = false } = {}) {
       driveAutoSaveStatus = "idle";
       updateDriveStatusUI();
       saveLocal(true);
-      render();
-      toast(`Drive から ${imported.length} 件読込 (マージ済)`);
+      safeRender();
+      if (initial) toast(added > 0 ? `Drive から ${added} 件取り込みました` : "Drive 同期済み");
+      else toast(`Drive から ${imported.length} 件読込 (マージ済)`);
     } catch (e) {
       if (/\b401\b/.test(e.message) && accessToken && !retried) {
-        tryRefreshToken(() => driveLoad({ retried: true }));
-        render();
+        tryRefreshToken(() => driveLoad({ retried: true, initial }));
+        safeRender();
         return;
       }
-      toast("Drive 読込失敗: " + e.message);
-      render();
+      toast((initial ? "Drive 同期失敗: " : "Drive 読込失敗: ") + e.message);
+      safeRender();
     }
   });
 }
@@ -2423,6 +2442,24 @@ function driveSignOut() {
   toast("Drive ログアウトしました");
 }
 
+// IME 変換中の render を遅延（変換状態の破壊を防ぐ）
+// driveLoad / driveSave 競合マージなど、ユーザーが入力中に完了しうる非同期パスから使う
+let _imeComposing = false;
+let _pendingRender = false;
+document.addEventListener("compositionstart", () => { _imeComposing = true; });
+document.addEventListener("compositionend", () => {
+  _imeComposing = false;
+  if (_pendingRender) {
+    _pendingRender = false;
+    // compositionend 直後の最終 input イベント（確定文字反映）を1tick待ってから
+    setTimeout(render, 0);
+  }
+});
+function safeRender() {
+  if (_imeComposing) { _pendingRender = true; return; }
+  render();
+}
+
 // ========== UI wire ==========
 // Drive 自動保存 ON・未認証時は認証完了後にエントリ作成する
 // 認証前に newEntry すると OAuth ダイアログが textarea のフォーカスを奪い
@@ -2444,7 +2481,13 @@ document.getElementById("fab").addEventListener("click", () => {
   );
 });
 document.getElementById("drive-status").addEventListener("click", () => {
-  if (driveAutoSaveStatus === "error" || driveDirty || !accessToken) driveSave();
+  if (driveAutoSaveStatus === "error") {
+    driveSave(); // 失敗の再試行
+  } else if (!accessToken) {
+    // 未認証: dirty なら認証＆保存、未編集なら認証＆Drive 同期（pull）
+    if (driveDirty) driveSave();
+    else driveLoad({ initial: true });
+  }
 });
 document.getElementById("btn-lock").addEventListener("click", async () => {
   if (!cryptoKey) {
@@ -2588,7 +2631,9 @@ document.addEventListener("visibilitychange", () => {
     && driveAutoSaveStatus !== "saving";
   if (document.visibilityState === "hidden") {
     saveLocal(true);
-    if (canAutoSave()) driveSave({ silent: true });
+    // モバイルで背景化と同時にプロセス終了される可能性があるので keepalive を有効化。
+    // 64KiB を超えるメモは silent エラーになるが、復帰時の visible で再送される。
+    if (canAutoSave()) driveSave({ silent: true, keepalive: true });
   } else if (document.visibilityState === "visible") {
     if (canAutoSave()) driveSave({ silent: true });
   }
@@ -3545,6 +3590,9 @@ document.getElementById("btn-archive").addEventListener("click", () => archiveAn
 updateLockBtn();
 updateFabUI();
 render();
+// Drive 自動保存ON・未認証の状態（=起動直後）で ☁ Drive 接続 を表示するため、
+// ステータス UI を初期化する
+updateDriveStatusUI();
 if (state.cryptoVerifier && !cryptoKey) {
   showPasswordModal("unlock");
 }
