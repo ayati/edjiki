@@ -788,12 +788,28 @@ body.fullscreen-mode main { padding: 0; max-width: 100%; }
           </select>
         </label>
         <label style="font-size:12px;display:flex;align-items:center;gap:8px">
-          日付区切り
-          <select id="setting-date-sep" style="flex:1">
-            <option value="/">YYYY/MM/DD（標準）</option>
-            <option value="-">YYYY-MM-DD（ISO 8601）</option>
+          日付フォーマット
+          <select id="setting-date-format" style="flex:1">
+            <option value="slash">YYYY/MM/DD HH:MM:SS（標準）</option>
+            <option value="dash">YYYY-MM-DD HH:MM:SS</option>
+            <option value="iso">ISO 8601（YYYY-MM-DDTHH:MM:SS+09:00）</option>
           </select>
         </label>
+        <div id="setting-iso-tz-row" style="display:none;flex-direction:column;gap:4px;margin-left:12px;padding-left:8px;border-left:2px solid var(--border)">
+          <label style="font-size:12px;display:flex;align-items:center;gap:8px">
+            タイムゾーン
+            <select id="setting-iso-tz-mode" style="flex:1">
+              <option value="stored">自動（保存時のオフセットを保持）</option>
+              <option value="utc">UTC（Z）</option>
+              <option value="fixed">固定オフセット</option>
+            </select>
+          </label>
+          <div id="setting-iso-tz-fixed-row" style="display:none;flex-direction:row;align-items:center;gap:6px;font-size:12px">
+            <span style="white-space:nowrap">固定値</span>
+            <select id="setting-iso-tz-fixed" style="flex:1"></select>
+            <button id="setting-iso-tz-local" type="button" style="font-size:11px;padding:2px 6px">現在のローカル</button>
+          </div>
+        </div>
       </div>
     </div>
     <div class="settings-row">
@@ -1201,6 +1217,31 @@ function fmtLocalInput(iso) {
   const d = new Date(iso);
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
+function parseOffsetMinutes(s) {
+  // "+09:00" / "-05:30" / "Z" → minutes east of UTC
+  if (!s || s === "Z") return 0;
+  const m = /^([+-])(\d{2}):(\d{2})$/.exec(s);
+  if (!m) return 0;
+  return (m[1] === "-" ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3]));
+}
+function formatOffsetMinutes(min, useZ) {
+  if (min === 0 && useZ) return "Z";
+  const sign = min >= 0 ? "+" : "-";
+  const a = Math.abs(min);
+  return `${sign}${pad(Math.floor(a/60))}:${pad(a%60)}`;
+}
+function formatIsoTimestamp(time, mode, fixed) {
+  // time = stored ISO with offset, e.g., "2026-04-13T21:43:10+09:00"
+  // Returns timestamp string with offset or Z (no private sigil — caller adds it).
+  if (mode === "stored") return time;
+  const targetMin = (mode === "utc") ? 0 : parseOffsetMinutes(fixed || "+09:00");
+  const utcMs = new Date(time).getTime();
+  const td = new Date(utcMs + targetMin * 60 * 1000);
+  return `${td.getUTCFullYear()}-${pad(td.getUTCMonth()+1)}-${pad(td.getUTCDate())}T${pad(td.getUTCHours())}:${pad(td.getUTCMinutes())}:${pad(td.getUTCSeconds())}${formatOffsetMinutes(targetMin, mode === "utc")}`;
+}
+function currentLocalOffsetString() {
+  return tzSuffix(new Date());
+}
 
 // ========== Normalize (空行禁止) ==========
 function normalizeText(t) {
@@ -1214,14 +1255,24 @@ function normalizeText(t) {
 
 // ========== Txt serialize / parse ==========
 function serializeTxt(st) {
-  const sep = (typeof settings !== "undefined" ? settings.dateSep : null) || "/";
+  const fmt    = (typeof settings !== "undefined" && settings.dateFormat) || "slash";
+  const tzMode = (typeof settings !== "undefined" && settings.isoTzMode)  || "stored";
+  const tzFix  = (typeof settings !== "undefined" && settings.isoTzFixed) || "+09:00";
   const sorted = [...st.entries].sort((a, b) => new Date(b.time) - new Date(a.time));
   const out = [];
   for (const e of sorted) {
-    const d = new Date(e.time);
-    const head = `${d.getFullYear()}${sep}${pad(d.getMonth()+1)}${sep}${pad(d.getDate())} ${e.private ? "-" : ""}${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     const body = normalizeText(e.text ?? "");  // null（ロック中）はスキップ
     if (!body) continue;
+    let head;
+    if (fmt === "iso") {
+      const ts = formatIsoTimestamp(e.time, tzMode, tzFix);
+      // private は offset/Z の直後に `*` を接着
+      head = `${ts}${e.private ? "*" : ""}`;
+    } else {
+      const sep = fmt === "dash" ? "-" : "/";
+      const d = new Date(e.time);
+      head = `${d.getFullYear()}${sep}${pad(d.getMonth()+1)}${sep}${pad(d.getDate())} ${e.private ? "-" : ""}${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
     const lines = body.split("\n");
     out.push(`${head} ${lines[0]}`);
     for (let i = 1; i < lines.length; i++) out.push(lines[i]);
@@ -1247,11 +1298,27 @@ function detectAndDecode(buf) {
 }
 function parseTxt(src) {
   const lines = src.replace(/\r\n?/g, "\n").split("\n");
-  const HEAD = /^(\d{4})[\/\-](\d{2})[\/\-](\d{2}) (-?)(\d{2}):(\d{2}):(\d{2})(?: (.*))?$/;
+  // ISO 8601: YYYY-MM-DDTHH:MM:SS<offset|Z>[*] body
+  const RE_ISO    = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(Z|[+-]\d{2}:\d{2})(\*?)(?: (.*))?$/;
+  // 既存 (slash / dash + space-separated, optional `-` private prefix on time)
+  const RE_LEGACY = /^(\d{4})[\/\-](\d{2})[\/\-](\d{2}) (-?)(\d{2}):(\d{2}):(\d{2})(?: (.*))?$/;
   const out = [];
   let cur = null;
   for (const line of lines) {
-    const m = line.match(HEAD);
+    let m = line.match(RE_ISO);
+    if (m) {
+      if (cur) out.push(cur);
+      // Z は `+00:00` に正規化（dedup signature の安定化のため）
+      const tz = m[7] === "Z" ? "+00:00" : m[7];
+      cur = {
+        id: newId(),
+        time: `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}${tz}`,
+        private: m[8] === "*",
+        text: m[9] || ""
+      };
+      continue;
+    }
+    m = line.match(RE_LEGACY);
     if (m) {
       if (cur) out.push(cur);
       cur = {
@@ -2664,14 +2731,24 @@ const THEMES = [
   { key: "blue-water", label: "ブルー",  bg:"#0d1b2a", fg:"#d0e8f8", muted:"#5a8aaa", accent:"#4fc3f7", border:"#1e3a4f", card:"#122537", private:"#ff9c70", danger:"#ef5350", scheme:"dark"  },
   { key: "nord",       label: "ノルド",  bg:"#2e3440", fg:"#eceff4", muted:"#7b8fa8", accent:"#88c0d0", border:"#434c5e", card:"#3b4252", private:"#ebcb8b", danger:"#bf616a", scheme:"dark"  },
 ];
-const SETTINGS_DEFAULTS = { fontSize: 16, lineHeight: 1.6, fontKey: "biz-ud", theme: "auto", daysToKeep: 60, lineEnding: "LF", dateSep: "/", autoFullscreenOnNew: false, driveAutoSave: true };
+const SETTINGS_DEFAULTS = { fontSize: 16, lineHeight: 1.6, fontKey: "biz-ud", theme: "auto", daysToKeep: 60, lineEnding: "LF", dateFormat: "slash", isoTzMode: "stored", isoTzFixed: "+09:00", autoFullscreenOnNew: false, driveAutoSave: true };
 let settings = (() => {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (raw) return { ...SETTINGS_DEFAULTS, ...JSON.parse(raw) };
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Migration: dateSep ("/" | "-") → dateFormat ("slash" | "dash")
+      if (parsed.dateSep && !parsed.dateFormat) {
+        parsed.dateFormat = parsed.dateSep === "-" ? "dash" : "slash";
+      }
+      delete parsed.dateSep;
+      return { ...SETTINGS_DEFAULTS, ...parsed };
+    }
   } catch (e) {}
   return { ...SETTINGS_DEFAULTS };
 })();
+// Persist immediately if we migrated from dateSep
+saveSettings();
 
 function saveSettings() {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
@@ -2747,7 +2824,11 @@ function openSettings() {
   renderThemeOptions();
   updateSecurityUI();
   document.getElementById("setting-line-ending").value = settings.lineEnding || "LF";
-  document.getElementById("setting-date-sep").value    = settings.dateSep    || "/";
+  document.getElementById("setting-date-format").value = settings.dateFormat || "slash";
+  populateIsoTzFixedOptions();
+  document.getElementById("setting-iso-tz-mode").value  = settings.isoTzMode  || "stored";
+  document.getElementById("setting-iso-tz-fixed").value = settings.isoTzFixed || "+09:00";
+  updateIsoTzVisibility();
   document.getElementById("setting-auto-fullscreen").checked = !!settings.autoFullscreenOnNew;
   const driveAutoSaveRow = document.getElementById("setting-drive-autosave-row");
   const driveAutoSaveCb  = document.getElementById("setting-drive-autosave");
@@ -3571,9 +3652,91 @@ document.getElementById("setting-line-ending").addEventListener("change", (ev) =
   settings.lineEnding = ev.target.value;
   saveSettings();
 });
-document.getElementById("setting-date-sep").addEventListener("change", (ev) => {
-  settings.dateSep = ev.target.value;
+function populateIsoTzFixedOptions() {
+  const sel = document.getElementById("setting-iso-tz-fixed");
+  if (!sel.options.length) {
+    // -12:00 〜 +14:00 を 30 分刻みで列挙
+    for (let min = -12*60; min <= 14*60; min += 30) {
+      const sign = min >= 0 ? "+" : "-";
+      const a = Math.abs(min);
+      const v = `${sign}${pad(Math.floor(a/60))}:${pad(a%60)}`;
+      const opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = v;
+      sel.appendChild(opt);
+    }
+  }
+  // 保存済みの値が選択肢に無い（45 分単位の TZ など）場合は動的に追加
+  ensureIsoTzFixedOption(settings.isoTzFixed || "+09:00");
+}
+function ensureIsoTzFixedOption(value) {
+  if (!/^[+-]\d{2}:\d{2}$/.test(value)) return;
+  const sel = document.getElementById("setting-iso-tz-fixed");
+  for (const o of sel.options) if (o.value === value) return;
+  // ソート挿入: minutes-east-of-UTC で昇順
+  const targetMin = parseOffsetMinutes(value);
+  const opt = document.createElement("option");
+  opt.value = value;
+  opt.textContent = value;
+  let inserted = false;
+  for (const o of sel.options) {
+    if (parseOffsetMinutes(o.value) > targetMin) {
+      sel.insertBefore(opt, o);
+      inserted = true;
+      break;
+    }
+  }
+  if (!inserted) sel.appendChild(opt);
+}
+function updateIsoTzVisibility() {
+  const isIso = (settings.dateFormat || "slash") === "iso";
+  document.getElementById("setting-iso-tz-row").style.display = isIso ? "flex" : "none";
+  const isFixed = (settings.isoTzMode || "stored") === "fixed";
+  document.getElementById("setting-iso-tz-fixed-row").style.display = (isIso && isFixed) ? "flex" : "none";
+}
+function maybeConfirmDriveFormatSwitch() {
+  // dateFormat（または iso 設定）が変わるとき、Drive 連携中なら確認
+  if (!state.driveFileId) return true;
+  const fileName = state.driveFileName || "Drive ファイル";
+  return confirm(
+    "Drive 上の保存形式も切り替わります。\n" +
+    "次回 Drive へ保存される際、" + fileName + " が新しい形式で書き換わります。\n" +
+    "他端末で別形式を使っている場合は注意してください。\n\n" +
+    "[OK] このまま切り替える / [キャンセル] 変更を取り消す"
+  );
+}
+document.getElementById("setting-date-format").addEventListener("change", (ev) => {
+  const prev = settings.dateFormat || "slash";
+  const next = ev.target.value;
+  if (next === prev) return;
+  if (!maybeConfirmDriveFormatSwitch()) { ev.target.value = prev; return; }
+  settings.dateFormat = next;
   saveSettings();
+  updateIsoTzVisibility();
+});
+document.getElementById("setting-iso-tz-mode").addEventListener("change", (ev) => {
+  const prev = settings.isoTzMode || "stored";
+  const next = ev.target.value;
+  if (next === prev) return;
+  if (!maybeConfirmDriveFormatSwitch()) { ev.target.value = prev; return; }
+  settings.isoTzMode = next;
+  saveSettings();
+  updateIsoTzVisibility();
+});
+document.getElementById("setting-iso-tz-fixed").addEventListener("change", (ev) => {
+  const prev = settings.isoTzFixed || "+09:00";
+  const next = ev.target.value;
+  if (next === prev) return;
+  if (!maybeConfirmDriveFormatSwitch()) { ev.target.value = prev; return; }
+  settings.isoTzFixed = next;
+  saveSettings();
+});
+document.getElementById("setting-iso-tz-local").addEventListener("click", () => {
+  const v = currentLocalOffsetString();
+  ensureIsoTzFixedOption(v); // 45 分単位 TZ 等にも対応
+  const sel = document.getElementById("setting-iso-tz-fixed");
+  sel.value = v;
+  sel.dispatchEvent(new Event("change"));
 });
 document.getElementById("setting-auto-fullscreen").addEventListener("change", (ev) => {
   settings.autoFullscreenOnNew = ev.target.checked;
