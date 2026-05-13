@@ -1167,24 +1167,50 @@ function updateTitle() {
 }
 
 // ========== Undo ==========
-const UNDO_MAX = 5;
-let undoStack = [];
+const UNDO_MAX_STEPS = 20;
+const UNDO_MAX_BYTES = 5 * 1024 * 1024; // 5 MiB
+let undoStack = [];   // [{ snap, bytes, _cmp }]
+let undoBytes = 0;
+let _undoLastPushAt = 0;
+let _undoCharsSinceLastPush = 0;
 function pushUndo() {
   const snap = state.entries.map(e => e.enc ? { ...e, enc: { ...e.enc } } : { ...e });
+  const json = JSON.stringify(snap);
   // 直前のスナップショットと同一なら積まない（クリックするだけで消費しない）
-  if (undoStack.length > 0 && JSON.stringify(undoStack[undoStack.length - 1]) === JSON.stringify(snap)) return;
-  undoStack.push(snap);
-  if (undoStack.length > UNDO_MAX) undoStack.shift();
+  if (undoStack.length > 0 && undoStack[undoStack.length - 1]._cmp === json) return;
+  const bytes = new TextEncoder().encode(json).length;
+  undoStack.push({ snap, bytes, _cmp: json });
+  undoBytes += bytes;
+  // 件数制限
+  while (undoStack.length > UNDO_MAX_STEPS) {
+    undoBytes -= undoStack.shift().bytes;
+  }
+  // バイト制限（直近 1 つは必ず残す）
+  while (undoBytes > UNDO_MAX_BYTES && undoStack.length > 1) {
+    undoBytes -= undoStack.shift().bytes;
+  }
+  _undoLastPushAt = Date.now();
+  _undoCharsSinceLastPush = 0;
   updateUndoUI();
 }
 function undo() {
   if (undoStack.length === 0) { toast("元に戻す履歴がありません"); return; }
-  state.entries = undoStack.pop();
+  const top = undoStack.pop();
+  undoBytes -= top.bytes;
+  state.entries = top.snap;
   driveDirty = true; scheduleDriveAutoSave(); updateDriveStatusUI();
   saveLocal(true);
   render();
   updateUndoUI();
   toast("元に戻しました");
+}
+function clearUndo() {
+  if (undoStack.length === 0 && undoBytes === 0) return;
+  undoStack = [];
+  undoBytes = 0;
+  _undoLastPushAt = 0;
+  _undoCharsSinceLastPush = 0;
+  updateUndoUI();
 }
 function updateUndoUI() {
   const btn = document.getElementById("menu-btn-undo");
@@ -1449,6 +1475,7 @@ async function removePassword(password) {
   delete state.cryptoVerifier;
   state.version = 1;
   cryptoKey = null;
+  clearUndo();
   await saveLocal(true);
   updateLockBtn();
   updateSecurityUI();
@@ -1472,6 +1499,7 @@ async function changePassword(oldPw, newPw) {
   state.cryptoSalt     = salt;
   state.cryptoVerifier = await encryptText(newKey, "edjiki-verified");
   cryptoKey            = newKey;
+  clearUndo();
   await saveLocal(true);
   return true;
 }
@@ -1494,6 +1522,7 @@ async function lockEntries() {
     return { id: e.id, time: e.time, private: true, text: null, enc };
   }));
   cryptoKey = null;
+  clearUndo();
   saveLocal(true);
 }
 
@@ -1747,10 +1776,19 @@ function renderEntry(e) {
     if (!isFS) autoResize(ta);
     driveDirty = true; scheduleDriveAutoSave(); updateDriveStatusUI();
     saveLocal();
-    // 100文字入力ごとに2秒後保存をスケジュール（タブを閉じる前に貯金）
     const newLen = ta.value.length;
     const delta = newLen - ta._lastLen;
     ta._lastLen = newLen;
+    // ハイブリッド undo push（IME 変換中はスキップ）
+    if (!_imeComposing) {
+      _undoCharsSinceLastPush += Math.abs(delta);
+      const now = Date.now();
+      if (_undoCharsSinceLastPush >= 200
+          || (_undoLastPushAt && now - _undoLastPushAt >= 30000)) {
+        pushUndo();
+      }
+    }
+    // 100文字入力ごとに2秒後保存をスケジュール（タブを閉じる前に貯金）
     if (delta > 0) {
       driveCharsSinceLastSave += delta;
       if (driveCharsSinceLastSave >= 100) {
@@ -1806,9 +1844,13 @@ function editTime(e, span) {
     done = true;
     const m = input.value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
     if (m) {
-      e.time = isoFromParts(m[1], m[2], m[3], m[4], m[5], m[6] || "00");
-      driveDirty = true; scheduleDriveAutoSave(); updateDriveStatusUI();
-      saveLocal(true);
+      const newTime = isoFromParts(m[1], m[2], m[3], m[4], m[5], m[6] || "00");
+      if (newTime !== e.time) {
+        pushUndo();
+        e.time = newTime;
+        driveDirty = true; scheduleDriveAutoSave(); updateDriveStatusUI();
+        saveLocal(true);
+      }
     }
     render();
   };
@@ -1866,6 +1908,7 @@ function exitFullscreen() {
   // 空エントリの後処理（ent.text が確定してから判定）
   const finalEnt = state.entries.find(x => x.id === entId);
   if (finalEnt && !finalEnt.text) {
+    pushUndo();
     state.entries = state.entries.filter(x => x.id !== entId);
   }
   fullscreenEntryId = null;
@@ -2117,6 +2160,7 @@ document.getElementById("file-input").addEventListener("change", async (ev) => {
     const buf = await f.arrayBuffer();
     const txt = detectAndDecode(buf);
     const imported = parseTxt(txt);
+    pushUndo();
     state.entries = mergeEntries(state.entries, imported);
     driveDirty = true; scheduleDriveAutoSave(); updateDriveStatusUI();
     saveLocal(true);
@@ -2377,6 +2421,7 @@ function driveSave({ silent = false, retried = false, keepalive = false } = {}) 
           }
           const remote = await driveDownload(state.driveFileId);
           const parsed = parseTxt(remote);
+          pushUndo();
           state.entries = mergeEntries(state.entries, parsed);
           safeRender();
         }
@@ -2441,6 +2486,7 @@ function driveLoad({ retried = false, initial = false } = {}) {
       state.driveFileId = id;
       state.driveModifiedTime = meta.modifiedTime;
       if (meta.name) state.driveFileName = meta.name;
+      pushUndo();
       state.entries = mergeEntries(state.entries, imported);
       const added = state.entries.length - before;
       driveDirty = false;
@@ -2504,6 +2550,7 @@ function driveSignOut() {
   }
   accessToken = null;
   archiveCache = {}; // サインアウト時はアーカイブキャッシュを破棄
+  clearUndo();
   driveAutoSaveStatus = "idle";
   updateDriveStatusUI(); // dirty なら ☁ pending 表示に切り替わる
   toast("Drive ログアウトしました");
@@ -3589,7 +3636,9 @@ async function _executeArchive(stats) {
 
   // 成功した年のエントリのみ削除。失敗年分とロック中は現行データに残す
   const failedEntries = archivable.filter(e => failedYears.has(new Date(e.time).getFullYear()));
-  state.entries = [...toKeep, ...lockedOld, ...failedEntries];
+  const newEntries = [...toKeep, ...lockedOld, ...failedEntries];
+  if (newEntries.length !== state.entries.length) pushUndo();
+  state.entries = newEntries;
   driveDirty = true; scheduleDriveAutoSave(); updateDriveStatusUI();
   await saveLocal(true);
   render();

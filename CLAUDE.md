@@ -45,7 +45,7 @@ Note: `EDJIKI_DRIVE_FOLDER_ID` and `EDJIKI_DRIVE_FILE_ID` can also be set at run
 | Key | Action |
 |---|---|
 | `Ctrl+D` / `N` / `M` | New entry |
-| `Ctrl+Z` | Undo (up to 5 steps; no-op when a text field is focused) |
+| `Ctrl+Z` | Undo (up to 20 steps / 5 MiB; no-op when a text field is focused) |
 | `Ctrl+S` | Flush save to localStorage |
 | `Ctrl+Shift+S` | Download `.txt` |
 | `Ctrl+Shift+D` | Save to Drive |
@@ -65,7 +65,7 @@ The script is organized into named sections separated by `// ========== Section 
 | Section | Responsibility |
 |---|---|
 | **State** | `state` object + `loadLocal` / `saveLocal` (debounced 300 ms, immediate on flush) |
-| **Undo** | `undoStack` (max 5 snapshots of `state.entries`); `pushUndo()` — deep-clones entries onto the stack, skips if identical to top; `undo()` — pops and restores; triggered on textarea `focus` (first time per element) and `delBtn` click |
+| **Undo** | `undoStack` (max `UNDO_MAX_STEPS=20` snapshots of `state.entries`, max `UNDO_MAX_BYTES=5 MiB` total — each item is `{ snap, bytes, _cmp }` where `_cmp` is the JSON used for dedup); `undoBytes` tracks cumulative size; `pushUndo()` — deep-clones entries, skips if `_cmp` matches the top, evicts from the head when either limit is exceeded (the most recent entry is always kept); `undo()` — pops and restores, decrements `undoBytes`; `clearUndo()` — empties the stack and resets counters, called from `lockEntries` / `removePassword` / `changePassword` / `driveSignOut`. Hybrid trigger inside the textarea `input` handler: pushes when `_undoCharsSinceLastPush >= 200` or `Date.now() - _undoLastPushAt >= 30000`, gated by `!_imeComposing`. Structural triggers: textarea first focus, `✕` delete, fullscreen empty-entry deletion, `editTime` confirm, `importFile`, archive search import, `driveSave` conflict merge, `driveLoad` merge, `_executeArchive`. |
 | **Time utils** | `nowIso`, `isoFromParts`, `fmtDisplay`, `fmtLocalInput`, `tzSuffix` — all times stored as ISO 8601 with local TZ offset |
 | **Normalize** | `normalizeText` strips empty lines and trailing whitespace — entries with empty normalized text are auto-deleted |
 | **Txt serialize/parse** | `serializeTxt` / `parseTxt` — text format is `YYYY/MM/DD HH:MM:SS body` (private entries use `-HH:MM:SS`) |
@@ -176,5 +176,5 @@ Persisted to `localStorage["edjiki.settings"]` as JSON. Independent of diary dat
 | `file://` protocol unsupported | OAuth requires HTTP; always use the local server |
 | Password loss is unrecoverable | Private entries cannot be restored; Drive saves are plaintext `.txt` |
 | Drive operations blocked when locked | Must unlock (enter password) before saving/loading from Drive |
-| Undo stack resets on page reload | In-memory only; returns to 0 steps after reload |
+| Undo stack resets on page reload | In-memory only; returns to 0 steps after reload. Also cleared on lock / password change-or-remove / Drive sign-out. |
 | Shift-JIS output not supported | Export (download / Drive save) is always UTF-8; only import auto-detects Shift-JIS |
