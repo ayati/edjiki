@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic&family=M+PLUS+1p&family=M+PLUS+Rounded+1c&family=Noto+Sans+JP&family=Noto+Serif+JP&family=Zen+Old+Mincho&family=Shippori+Mincho&family=Sawarabi+Mincho&family=Hina+Mincho&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=M+PLUS+1p:wght@400;700&family=M+PLUS+Rounded+1c:wght@400;700&family=Noto+Sans+JP:wght@400;700&family=Noto+Serif+JP:wght@400;700&family=Zen+Old+Mincho:wght@400;700&family=Shippori+Mincho:wght@400;700&family=Sawarabi+Mincho&family=Hina+Mincho&display=swap" rel="stylesheet">
 <title>edjiki</title>
 <style>
 :root {
@@ -162,6 +162,9 @@ main {
   font-family: var(--entry-font-family, 'BIZ UDPGothic', sans-serif);
   font-size: var(--entry-font-size, 16px);
   line-height: var(--entry-line-height, 1.6);
+  font-weight: var(--entry-font-weight, 400);
+  -webkit-text-stroke: var(--entry-text-stroke, 0) currentColor;
+  paint-order: stroke fill;
   resize: none;
   outline: none;
   overflow: hidden;
@@ -541,6 +544,33 @@ main {
 }
 .font-option:has(input:checked) { border-color: var(--accent); background: var(--bg); }
 .font-option input[type="radio"] { cursor: pointer; accent-color: var(--accent); }
+.settings-note { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.outline-options { display: flex; gap: 6px; }
+.outline-options button {
+  flex: 1;
+  padding: 6px 0;
+  font-size: 12px;
+  font-family: inherit;
+  background: var(--card);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.outline-options button.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+#font-preview {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--fg);
+  font-family: var(--entry-font-family, 'BIZ UDPGothic', sans-serif);
+  font-size: var(--entry-font-size, 16px);
+  line-height: var(--entry-line-height, 1.6);
+  font-weight: var(--entry-font-weight, 400);
+  -webkit-text-stroke: var(--entry-text-stroke, 0) currentColor;
+  paint-order: stroke fill;
+}
 /* Theme selector */
 .theme-options {
   display: grid;
@@ -718,6 +748,10 @@ body.fullscreen-mode main { padding: 0; max-width: 100%; }
       <input type="range" id="setting-line-height" min="1.2" max="2.0" step="0.1" value="1.6">
     </div>
     <div class="settings-row">
+      <label class="settings-label">プレビュー</label>
+      <div id="font-preview"></div>
+    </div>
+    <div class="settings-row">
       <label class="settings-label">フォント</label>
       <div class="font-options">
         <div class="font-group">ゴシック</div>
@@ -772,6 +806,12 @@ body.fullscreen-mode main { padding: 0; max-width: 100%; }
           <span style="font-family:ui-monospace,monospace">ui-monospace</span>
         </label>
       </div>
+      <label style="font-size:12px;display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px">
+        <input type="checkbox" id="setting-font-bold"> 太字で表示
+      </label>
+      <div id="font-bold-note" class="settings-note hidden">※ このフォントは太字データを持たないため簡易表示になります。疑似ボールドの利用がおすすめです</div>
+      <label class="settings-label" style="margin-top:8px">疑似ボールド</label>
+      <div class="outline-options" id="outline-options"></div>
     </div>
     <div class="settings-row">
       <label class="settings-label">セキュリティ</label>
@@ -822,6 +862,14 @@ body.fullscreen-mode main { padding: 0; max-width: 100%; }
         <input type="checkbox" id="setting-drive-autosave">
         Drive へ自動保存（100文字ごと・入力停止10秒後・アプリ切替時など）
       </label>
+    </div>
+    <div class="settings-row">
+      <label class="settings-label">バックアップ</label>
+      <div class="security-btns">
+        <button id="btn-export-settings">⬇ 設定を書き出す</button>
+        <button id="btn-import-settings">⬆ 設定を読み込む...</button>
+      </div>
+      <div class="settings-note">配色・フォント・ファイル形式・Drive 接続先などの設定を JSON ファイルに保存/復元します（日記本文・パスワードは含まれません）。</div>
     </div>
   </div>
 </div>
@@ -890,6 +938,7 @@ body.fullscreen-mode main { padding: 0; max-width: 100%; }
 </div>
 <button class="fab" id="fab" title="新規エントリ">＋</button>
 <input type="file" id="file-input" accept=".txt,text/plain" class="hidden">
+<input type="file" id="settings-file-input" accept=".json,application/json" class="hidden">
 <div class="pw-overlay hidden" id="pw-overlay">
   <div class="pw-modal">
     <div class="pw-header" id="pw-title"></div>
@@ -1644,6 +1693,20 @@ function buildOnboardingCard() {
   alt.appendChild(altBtn);
   body.appendChild(alt);
 
+  const restore = document.createElement("div");
+  restore.className = "onboarding-alt";
+  const restoreLabel = document.createElement("span");
+  restoreLabel.textContent = "保存済みの設定から復元";
+  const restoreBtn = document.createElement("button");
+  restoreBtn.textContent = "⬆ 復元";
+  restoreBtn.title = "設定バックアップ（.json）を読み込み、Drive 保存先などを復元します";
+  restoreBtn.addEventListener("click", () => {
+    document.getElementById("settings-file-input").click();
+  });
+  restore.appendChild(restoreLabel);
+  restore.appendChild(restoreBtn);
+  body.appendChild(restore);
+
   return card;
 }
 function makeOnboardingStep(isDone, label, value, btnLabel, onClick) {
@@ -2168,6 +2231,127 @@ document.getElementById("file-input").addEventListener("change", async (ev) => {
     toast(`${imported.length} 件読込 (マージ済)`);
   } catch (e) {
     toast("読込失敗: " + e.message);
+  }
+  ev.target.value = "";
+});
+
+// ---------- 設定エクスポート / インポート ----------
+function exportSettings() {
+  const d = new Date();
+  const ymd = d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
+  const data = {
+    app: "edjiki", type: "settings", formatVersion: 1, exportedAt: nowIso(),
+    settings: { ...settings },
+    drive: {
+      fileName:        state.driveFileName,
+      folderId:        state.driveFolderId,
+      pinnedFileId:    state.drivePinnedFileId,
+      archiveFolderId: state.archiveFolderId,
+    },
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `edjiki-settings_${ymd}.json`; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const notes = [];
+  if (data.drive.pinnedFileId) notes.push("Drive ファイル ID を含みます");
+  if ((settings.customFonts || []).some(f => f.source === "file")) notes.push("取込フォントのデータ本体は含まれません");
+  toast("設定を書き出しました" + (notes.length ? "（" + notes.join("・") + "）" : ""));
+}
+// ホワイトリスト＋型・値域検証（未知キーは黙って破棄 → 将来版との後方互換）
+function sanitizeImportedSettings(src) {
+  const ENUMS = {
+    theme:       THEMES.map(t => t.key),
+    fontOutline: ["none", "weak", "medium", "strong"],
+    lineEnding:  ["LF", "CRLF"],
+    dateFormat:  ["slash", "dash", "iso"],
+    isoTzMode:   ["stored", "utc", "fixed"],
+  };
+  const out = {};
+  for (const k of Object.keys(SETTINGS_DEFAULTS)) {
+    if (!(k in src)) continue;
+    const v = src[k], def = SETTINGS_DEFAULTS[k];
+    if (k === "customFonts") {
+      if (Array.isArray(v)) out[k] = v.filter(f =>
+        f && typeof f.key === "string" && /^cf-[a-zA-Z0-9-]+$/.test(f.key)
+          && typeof f.label === "string" && typeof f.family === "string"
+          && (f.source === "file" || f.source === "named")
+      ).slice(0, 20).map(f => ({ key: f.key, label: f.label, source: f.source,
+                                 family: f.family.replace(/['"\\;{}<>]/g, "") }));
+      continue;
+    }
+    if (typeof v !== typeof def) continue;
+    if (ENUMS[k] && !ENUMS[k].includes(v)) continue;
+    out[k] = v;
+  }
+  if (out.fontSize   !== undefined) out.fontSize   = Math.min(24,  Math.max(12,  Math.round(out.fontSize)));
+  if (out.lineHeight !== undefined) out.lineHeight = Math.min(2.0, Math.max(1.2, out.lineHeight));
+  if (out.daysToKeep !== undefined) out.daysToKeep = Math.max(1, Math.round(out.daysToKeep));
+  return out;
+}
+function importSettingsBody(data) {
+  Object.assign(settings, sanitizeImportedSettings(data.settings || {}));
+  // fontKey 整合: FONT_FAMILIES にも customFonts にも無ければ既定へ
+  const validFont = Object.prototype.hasOwnProperty.call(FONT_FAMILIES, settings.fontKey)
+    || (settings.customFonts || []).some(f => f.key === settings.fontKey);
+  if (!validFont) settings.fontKey = "biz-ud";
+
+  // drive: null 以外のみ上書き（各副作用は現行の変更セマンティクスに準拠）
+  const dr = data.drive || {};
+  let pinnedChanged = false;
+  if (dr.fileName != null && dr.fileName !== state.driveFileName) {
+    state.driveFileName = dr.fileName;
+    state.driveFileId = null; state.driveModifiedTime = null;
+  }
+  if (dr.folderId != null && dr.folderId !== state.driveFolderId) {
+    state.driveFolderId = dr.folderId;
+    state.driveFolderName = null; state.driveFileId = null; state.driveModifiedTime = null;
+  }
+  if (dr.pinnedFileId != null && dr.pinnedFileId !== state.drivePinnedFileId) {
+    state.drivePinnedFileId = dr.pinnedFileId;
+    state.driveFileId = dr.pinnedFileId; state.driveModifiedTime = null;
+    tokenClient = null; // スコープが drive に広がるため再初期化
+    pinnedChanged = true;
+  }
+  if (dr.archiveFolderId != null && dr.archiveFolderId !== state.archiveFolderId) {
+    state.archiveFolderId = dr.archiveFolderId;
+    archiveCache = {};
+  }
+
+  saveSettings();
+  applySettings();
+  resizeAll();
+  saveLocal(true);
+  updateTitle();
+  updateDriveStatusUI();
+  if (state.driveFolderId && !state.driveFolderName) fetchAndCacheFolderName();
+  render();
+  closeSettings();
+  toast(pinnedChanged
+    ? "設定を読み込みました（次回の Drive 操作時に再認証されます）"
+    : "設定を読み込みました");
+}
+async function applySettingsImport(f) {
+  let data;
+  try { data = JSON.parse(await f.text()); }
+  catch { toast("JSON として読み込めませんでした"); return; }
+  if (!data || data.app !== "edjiki" || data.type !== "settings") {
+    toast("edjiki の設定ファイルではありません"); return; }
+  if (typeof data.formatVersion !== "number" || data.formatVersion > 1) {
+    toast("新しいバージョンの設定ファイルです（このバージョンでは読み込めません）"); return; }
+  if (!confirm("現在の設定を読み込んだ内容で上書きします。よろしいですか？")) return;
+  importSettingsBody(data);
+}
+document.getElementById("btn-export-settings").addEventListener("click", exportSettings);
+document.getElementById("btn-import-settings").addEventListener("click", () => {
+  document.getElementById("settings-file-input").click();
+});
+document.getElementById("settings-file-input").addEventListener("change", async (ev) => {
+  const f = ev.target.files[0];
+  if (f) {
+    if (f.size > 1024 * 1024) { toast("ファイルが大きすぎます（上限 1MB）"); ev.target.value = ""; return; }
+    await applySettingsImport(f);
   }
   ev.target.value = "";
 });
@@ -2778,7 +2962,7 @@ const THEMES = [
   { key: "blue-water", label: "ブルー",  bg:"#0d1b2a", fg:"#d0e8f8", muted:"#5a8aaa", accent:"#4fc3f7", border:"#1e3a4f", card:"#122537", private:"#ff9c70", danger:"#ef5350", scheme:"dark"  },
   { key: "nord",       label: "ノルド",  bg:"#2e3440", fg:"#eceff4", muted:"#7b8fa8", accent:"#88c0d0", border:"#434c5e", card:"#3b4252", private:"#ebcb8b", danger:"#bf616a", scheme:"dark"  },
 ];
-const SETTINGS_DEFAULTS = { fontSize: 16, lineHeight: 1.6, fontKey: "biz-ud", theme: "auto", daysToKeep: 60, lineEnding: "LF", dateFormat: "slash", isoTzMode: "stored", isoTzFixed: "+09:00", autoFullscreenOnNew: false, driveAutoSave: true };
+const SETTINGS_DEFAULTS = { fontSize: 16, lineHeight: 1.6, fontKey: "biz-ud", theme: "auto", daysToKeep: 60, lineEnding: "LF", dateFormat: "slash", isoTzMode: "stored", isoTzFixed: "+09:00", autoFullscreenOnNew: false, driveAutoSave: true, fontBold: false, fontOutline: "none", customFonts: [] };
 let settings = (() => {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -2789,6 +2973,7 @@ let settings = (() => {
         parsed.dateFormat = parsed.dateSep === "-" ? "dash" : "slash";
       }
       delete parsed.dateSep;
+      if (!Array.isArray(parsed.customFonts)) delete parsed.customFonts;
       return { ...SETTINGS_DEFAULTS, ...parsed };
     }
   } catch (e) {}
@@ -2800,11 +2985,14 @@ saveSettings();
 function saveSettings() {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
+const OUTLINE_WIDTHS = { none: "0", weak: "0.015em", medium: "0.03em", strong: "0.05em" };
 function applySettings() {
   const r = document.documentElement;
   r.style.setProperty("--entry-font-size",   settings.fontSize + "px");
   r.style.setProperty("--entry-font-family", FONT_FAMILIES[settings.fontKey] || FONT_FAMILIES["biz-ud"]);
   r.style.setProperty("--entry-line-height", String(settings.lineHeight));
+  r.style.setProperty("--entry-font-weight", settings.fontBold ? "700" : "400");
+  r.style.setProperty("--entry-text-stroke", OUTLINE_WIDTHS[settings.fontOutline] || "0");
   const t = THEMES.find(th => th.key === settings.theme);
   if (t && t.bg) {
     r.style.setProperty("--bg",          t.bg);
@@ -2849,6 +3037,38 @@ function renderThemeOptions() {
     container.appendChild(btn);
   });
 }
+// 本物の 700 ウェイトを持たない書体（合成ボールドに落ちる）
+const BOLD_SIMULATED = new Set(["sawarabi-mincho", "hina-mincho"]);
+function updateFontBoldNote() {
+  const simulated = BOLD_SIMULATED.has(settings.fontKey) || settings.fontKey.startsWith("cf-");
+  document.getElementById("font-bold-note")
+    .classList.toggle("hidden", !(settings.fontBold && simulated));
+}
+const OUTLINE_LEVELS = [
+  { key: "none",   label: "なし" },
+  { key: "weak",   label: "弱"   },
+  { key: "medium", label: "中"   },
+  { key: "strong", label: "強"   },
+];
+function renderOutlineOptions() {
+  const container = document.getElementById("outline-options");
+  container.innerHTML = "";
+  OUTLINE_LEVELS.forEach(l => {
+    const btn = document.createElement("button");
+    btn.className = settings.fontOutline === l.key ? "selected" : "";
+    btn.textContent = l.label;
+    btn.addEventListener("click", () => {
+      settings.fontOutline = l.key;
+      applySettings(); saveSettings(); renderOutlineOptions();
+    });
+    container.appendChild(btn);
+  });
+}
+function updateFontPreview() {
+  const stamp = fmtDisplay(nowIso());
+  document.getElementById("font-preview").textContent =
+    stamp + " 京にとくあげ給て、物語の多く候ふなる、あるかぎり見せ給へ";
+}
 applySettings();
 
 const $settingsPanel   = document.getElementById("settings-panel");
@@ -2868,6 +3088,10 @@ function openSettings() {
   $lineHVal.textContent    = settings.lineHeight.toFixed(1);
   const radio = document.querySelector(`input[name="font-family"][value="${settings.fontKey}"]`);
   if (radio) radio.checked = true;
+  document.getElementById("setting-font-bold").checked = !!settings.fontBold;
+  updateFontBoldNote();
+  renderOutlineOptions();
+  updateFontPreview();
   renderThemeOptions();
   updateSecurityUI();
   document.getElementById("setting-line-ending").value = settings.lineEnding || "LF";
@@ -3064,9 +3288,13 @@ document.querySelectorAll("input[name='font-family']").forEach(radio => {
   radio.addEventListener("change", () => {
     if (radio.checked) {
       settings.fontKey = radio.value;
-      applySettings(); saveSettings(); resizeAll();
+      applySettings(); saveSettings(); resizeAll(); updateFontBoldNote();
     }
   });
+});
+document.getElementById("setting-font-bold").addEventListener("change", (ev) => {
+  settings.fontBold = ev.target.checked;
+  applySettings(); saveSettings(); resizeAll(); updateFontBoldNote();
 });
 
 // ========== Drive Settings ==========
