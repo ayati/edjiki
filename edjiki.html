@@ -549,7 +549,9 @@ main {
 #custom-font-list .font-option { justify-content: space-between; }
 .cf-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cf-btn { flex-shrink: 0; font-size: 12px; padding: 2px 8px; min-height: 24px; }
-.cf-btn.cf-warn { color: var(--danger); }
+.cf-btn.cf-warn { color: var(--danger); font-weight: 600; }
+.font-option.cf-missing { border-color: var(--danger); }
+.font-option.cf-missing .cf-name { color: var(--danger); }
 .font-add-trigger { font-size: 12px; margin-top: 6px; align-self: flex-start; }
 .font-add-section-label { font-size: 12px; color: var(--muted); }
 .font-add-divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
@@ -2371,6 +2373,9 @@ function importSettingsBody(data) {
   toast(pinnedChanged
     ? "設定を読み込みました（次回の Drive 操作時に再認証されます）"
     : "設定を読み込みました");
+  // インポートしたカスタムフォント（file）の実体を検証・再登録。
+  // 欠落があれば _cfMissing に記録し、⚠再取込 導線とトーストを出す。
+  loadCustomFonts();
 }
 async function applySettingsImport(f) {
   let data;
@@ -3024,24 +3029,32 @@ function resolveFontFamily(key) {
   }
   return FONT_FAMILIES[key] || FONT_FAMILIES["biz-ud"];
 }
-// 起動時: file ソースのカスタムフォントを IndexedDB から読み FontFace 登録（非ブロッキング）
+const _cfLoaded = new Set();  // 登録成功済みキー（再ロードを省く）
+// file ソースのカスタムフォントを IndexedDB から読み FontFace 登録（非ブロッキング）。
+// 起動時と設定インポート後に呼ぶ。バイナリ欠落は _cfMissing に記録して ⚠再取込 導線を出す。
 async function loadCustomFonts() {
-  const files = (settings.customFonts || []).filter(f => f.source === "file");
-  if (!files.length) return;
+  const custom = settings.customFonts || [];
+  const validKeys = new Set(custom.map(f => f.key));
+  // customFonts から消えたキーの残骸を掃除
+  for (const k of [..._cfMissing]) if (!validKeys.has(k)) _cfMissing.delete(k);
+  for (const k of [..._cfLoaded])  if (!validKeys.has(k)) _cfLoaded.delete(k);
+  const files = custom.filter(f => f.source === "file");
   let loaded = 0;
   for (const f of files) {
+    if (_cfLoaded.has(f.key)) { _cfMissing.delete(f.key); continue; }
     try {
       const buf = await fontDBGet(f.key);
       if (!buf) { _cfMissing.add(f.key); continue; }
       const face = new FontFace(f.family, buf);
       await face.load();
       document.fonts.add(face);
-      loaded++;
+      _cfLoaded.add(f.key); _cfMissing.delete(f.key); loaded++;
     } catch { _cfMissing.add(f.key); }
   }
   if (loaded) resizeAll();
-  if (_cfMissing.size && settings.fontKey.startsWith("cf-") && _cfMissing.has(settings.fontKey))
-    toast("⚠ 取込フォントのデータが見つかりません（設定 > フォントから再取込できます）");
+  renderCustomFontOptions();  // パネルが開いていれば ⚠ 表示を即時反映
+  if (settings.fontKey.startsWith("cf-") && _cfMissing.has(settings.fontKey))
+    toast("⚠ 選択中のフォントのデータがありません（設定 > フォントの「⚠ 再取込」から復元できます）");
 }
 
 // ========== Settings ==========
@@ -3184,7 +3197,7 @@ function renderCustomFontOptions() {
   (settings.customFonts || []).forEach(f => {
     const missing = _cfMissing.has(f.key);
     const label = document.createElement("label");
-    label.className = "font-option";
+    label.className = "font-option" + (missing ? " cf-missing" : "");
     const radio = document.createElement("input");
     radio.type = "radio"; radio.name = "font-family"; radio.value = f.key;
     radio.checked = settings.fontKey === f.key;
@@ -3549,7 +3562,7 @@ document.getElementById("font-file-input").addEventListener("change", async (ev)
       await face.load();
       document.fonts.add(face);
       await fontDBPut(target, buf);
-      _cfMissing.delete(target);
+      _cfMissing.delete(target); _cfLoaded.add(target);
       applySettings(); resizeAll(); renderCustomFontOptions();
       toast("フォントを再取込しました");
     } else {
@@ -3562,6 +3575,7 @@ document.getElementById("font-file-input").addEventListener("change", async (ev)
       await face.load();  // 不正・破損フォントはここで例外
       document.fonts.add(face);
       await fontDBPut(key, buf);
+      _cfLoaded.add(key);
       const label = file.name.replace(/\.[^.]+$/, "");
       settings.customFonts = settings.customFonts || [];
       settings.customFonts.push({ key, label, source: "file", family });
