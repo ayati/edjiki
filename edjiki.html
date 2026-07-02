@@ -545,6 +545,20 @@ main {
 .font-option:has(input:checked) { border-color: var(--accent); background: var(--bg); }
 .font-option input[type="radio"] { cursor: pointer; accent-color: var(--accent); }
 .settings-note { font-size: 11px; color: var(--muted); margin-top: 2px; }
+#custom-font-list { display: flex; flex-direction: column; gap: 6px; }
+#custom-font-list .font-option { justify-content: space-between; }
+.cf-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cf-btn { flex-shrink: 0; font-size: 12px; padding: 2px 8px; min-height: 24px; }
+.cf-btn.cf-warn { color: var(--danger); }
+.font-add-trigger { font-size: 12px; margin-top: 6px; align-self: flex-start; }
+.font-add-section-label { font-size: 12px; color: var(--muted); }
+.font-add-divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+.font-add-preview {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+  padding: 8px 10px; color: var(--fg); font-size: 15px; min-height: 1.6em;
+}
+.font-add-file-btn { font-size: 13px; width: 100%; }
+.font-add-note { font-size: 11px; color: var(--muted); }
 .outline-options { display: flex; gap: 6px; }
 .outline-options button {
   flex: 1;
@@ -805,6 +819,9 @@ body.fullscreen-mode main { padding: 0; max-width: 100%; }
           <input type="radio" name="font-family" value="monospace">
           <span style="font-family:ui-monospace,monospace">ui-monospace</span>
         </label>
+        <div class="font-group">カスタム</div>
+        <div id="custom-font-list"></div>
+        <button id="btn-add-font" class="font-add-trigger" type="button">＋ フォントを追加...</button>
       </div>
       <label style="font-size:12px;display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px">
         <input type="checkbox" id="setting-font-bold"> 太字で表示
@@ -939,6 +956,29 @@ body.fullscreen-mode main { padding: 0; max-width: 100%; }
 <button class="fab" id="fab" title="新規エントリ">＋</button>
 <input type="file" id="file-input" accept=".txt,text/plain" class="hidden">
 <input type="file" id="settings-file-input" accept=".json,application/json" class="hidden">
+<input type="file" id="font-file-input" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" class="hidden">
+<div class="pw-overlay hidden" id="font-add-overlay">
+  <div class="pw-modal">
+    <div class="pw-header">カスタムフォントの追加</div>
+    <div class="pw-body">
+      <div class="font-add-section-label">この端末のフォント名を指定</div>
+      <input type="text" id="font-add-name-input" list="local-fonts-list"
+             placeholder="例: 游明朝" autocomplete="off" spellcheck="false">
+      <datalist id="local-fonts-list"></datalist>
+      <div id="font-add-preview" class="font-add-preview">京にとくあげ給て、物語の多く候ふなる</div>
+      <div id="font-add-error" class="pw-error hidden"></div>
+      <hr class="font-add-divider">
+      <div class="font-add-section-label">またはフォントファイルを取り込む</div>
+      <button id="font-add-file-btn" type="button" class="font-add-file-btn">ファイルを選択 (.ttf .otf .woff .woff2)</button>
+      <div id="font-add-file-limit" class="font-add-note"></div>
+      <div class="font-add-note">※ 取り込んだファイルはこの端末のブラウザ内にのみ保存されます</div>
+    </div>
+    <div class="pw-footer">
+      <button id="font-add-cancel">キャンセル</button>
+      <button id="font-add-ok" class="pw-ok">名前を追加</button>
+    </div>
+  </div>
+</div>
 <div class="pw-overlay hidden" id="pw-overlay">
   <div class="pw-modal">
     <div class="pw-header" id="pw-title"></div>
@@ -2937,6 +2977,73 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
+// ========== Custom Fonts ==========
+// カスタムフォントのバイナリは IndexedDB に保存する（日本語フォントは数MB〜のため localStorage 不可）。
+// settings.customFonts はメタのみ: [{ key:"cf-xxxxxxxx", label, source:"file"|"named", family }]
+const FONT_DB_NAME = "edjiki-fonts", FONT_STORE = "fonts";
+const _cfMissing = new Set();  // バイナリ欠落キー（in-memory）
+let _reimportTarget = null;    // ⚠再取込の対象キー（null = 新規取込）
+function openFontDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(FONT_DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(FONT_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+function fontDBPut(key, buf) {
+  return openFontDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(FONT_STORE, "readwrite");
+    tx.objectStore(FONT_STORE).put(buf, key);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror    = () => { db.close(); reject(tx.error); };
+  }));
+}
+function fontDBGet(key) {
+  return openFontDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(FONT_STORE, "readonly");
+    const rq = tx.objectStore(FONT_STORE).get(key);
+    rq.onsuccess = () => { db.close(); resolve(rq.result); };
+    rq.onerror   = () => { db.close(); reject(rq.error); };
+  }));
+}
+function fontDBDelete(key) {
+  return openFontDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(FONT_STORE, "readwrite");
+    tx.objectStore(FONT_STORE).delete(key);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror    = () => { db.close(); reject(tx.error); };
+  }));
+}
+// fontKey → CSS font-family 文字列。cf- はカスタムフォント（欠落時は既定へフォールバック）
+function resolveFontFamily(key) {
+  if (key && key.startsWith("cf-")) {
+    const cf = (settings.customFonts || []).find(f => f.key === key);
+    if (cf && cf.family) return `'${cf.family}', ${FONT_FAMILIES["biz-ud"]}`;
+    return FONT_FAMILIES["biz-ud"];
+  }
+  return FONT_FAMILIES[key] || FONT_FAMILIES["biz-ud"];
+}
+// 起動時: file ソースのカスタムフォントを IndexedDB から読み FontFace 登録（非ブロッキング）
+async function loadCustomFonts() {
+  const files = (settings.customFonts || []).filter(f => f.source === "file");
+  if (!files.length) return;
+  let loaded = 0;
+  for (const f of files) {
+    try {
+      const buf = await fontDBGet(f.key);
+      if (!buf) { _cfMissing.add(f.key); continue; }
+      const face = new FontFace(f.family, buf);
+      await face.load();
+      document.fonts.add(face);
+      loaded++;
+    } catch { _cfMissing.add(f.key); }
+  }
+  if (loaded) resizeAll();
+  if (_cfMissing.size && settings.fontKey.startsWith("cf-") && _cfMissing.has(settings.fontKey))
+    toast("⚠ 取込フォントのデータが見つかりません（設定 > フォントから再取込できます）");
+}
+
 // ========== Settings ==========
 const SETTINGS_KEY = "edjiki.settings";
 const FONT_FAMILIES = {
@@ -2989,7 +3096,7 @@ const OUTLINE_WIDTHS = { none: "0", weak: "0.015em", medium: "0.03em", strong: "
 function applySettings() {
   const r = document.documentElement;
   r.style.setProperty("--entry-font-size",   settings.fontSize + "px");
-  r.style.setProperty("--entry-font-family", FONT_FAMILIES[settings.fontKey] || FONT_FAMILIES["biz-ud"]);
+  r.style.setProperty("--entry-font-family", resolveFontFamily(settings.fontKey));
   r.style.setProperty("--entry-line-height", String(settings.lineHeight));
   r.style.setProperty("--entry-font-weight", settings.fontBold ? "700" : "400");
   r.style.setProperty("--entry-text-stroke", OUTLINE_WIDTHS[settings.fontOutline] || "0");
@@ -3069,7 +3176,120 @@ function updateFontPreview() {
   document.getElementById("font-preview").textContent =
     stamp + " 京にとくあげ給て、物語の多く候ふなる、あるかぎり見せ給へ";
 }
+// カスタムフォント管理（設定パネル内リスト）
+function renderCustomFontOptions() {
+  const list = document.getElementById("custom-font-list");
+  if (!list) return;
+  list.innerHTML = "";
+  (settings.customFonts || []).forEach(f => {
+    const missing = _cfMissing.has(f.key);
+    const label = document.createElement("label");
+    label.className = "font-option";
+    const radio = document.createElement("input");
+    radio.type = "radio"; radio.name = "font-family"; radio.value = f.key;
+    radio.checked = settings.fontKey === f.key;
+    radio.addEventListener("change", () => {
+      if (radio.checked) {
+        settings.fontKey = f.key;
+        applySettings(); saveSettings(); resizeAll(); updateFontBoldNote();
+      }
+    });
+    const name = document.createElement("span");
+    name.className = "cf-name";
+    name.textContent = f.label + (missing ? "（データなし）" : "");
+    if (!missing) name.style.fontFamily = `'${f.family}'`;
+    label.append(radio, name);
+    if (missing) {
+      const warn = document.createElement("button");
+      warn.type = "button"; warn.className = "cf-btn cf-warn"; warn.textContent = "⚠ 再取込";
+      warn.title = "フォントファイルを選び直して復元します";
+      warn.addEventListener("click", ev => {
+        ev.preventDefault();
+        _reimportTarget = f.key;
+        document.getElementById("font-file-input").click();
+      });
+      label.appendChild(warn);
+    }
+    const del = document.createElement("button");
+    del.type = "button"; del.className = "cf-btn"; del.textContent = "✕";
+    del.title = "削除";
+    del.addEventListener("click", ev => { ev.preventDefault(); deleteCustomFont(f.key); });
+    label.appendChild(del);
+    list.appendChild(label);
+  });
+}
+function deleteCustomFont(key) {
+  if (!confirm("このフォントを削除しますか？")) return;
+  const f = (settings.customFonts || []).find(x => x.key === key);
+  settings.customFonts = (settings.customFonts || []).filter(x => x.key !== key);
+  if (f && f.source === "file") fontDBDelete(key).catch(() => {});
+  _cfMissing.delete(key);
+  if (settings.fontKey === key) settings.fontKey = "biz-ud";
+  applySettings(); saveSettings(); resizeAll(); updateFontBoldNote();
+  renderCustomFontOptions();
+  const radio = document.querySelector(`input[name="font-family"][value="${settings.fontKey}"]`);
+  if (radio) radio.checked = true;
+}
+// フォント追加ダイアログ
+let _localFontsQueried = false;
+async function tryPopulateLocalFonts() {
+  if (_localFontsQueried) return;
+  _localFontsQueried = true;
+  if (!("queryLocalFonts" in window)) return;
+  try {
+    const fonts = await window.queryLocalFonts();
+    const dl = document.getElementById("local-fonts-list");
+    dl.innerHTML = "";
+    const seen = new Set();
+    for (const font of fonts) {
+      if (seen.has(font.family)) continue;
+      seen.add(font.family);
+      const opt = document.createElement("option");
+      opt.value = font.family;
+      dl.appendChild(opt);
+    }
+  } catch { /* 権限拒否・非対応は無視（素のテキスト入力として動作） */ }
+}
+function sanitizeFontName(s) { return (s || "").replace(/['"\\;{}<>]/g, "").trim(); }
+function updateFontAddPreview() {
+  const fam = sanitizeFontName(document.getElementById("font-add-name-input").value);
+  document.getElementById("font-add-preview").style.fontFamily =
+    fam ? `'${fam}', ${FONT_FAMILIES["biz-ud"]}` : FONT_FAMILIES["biz-ud"];
+}
+function updateFontAddFileLimit() {
+  const n = (settings.customFonts || []).filter(x => x.source === "file").length;
+  document.getElementById("font-add-file-limit").textContent =
+    `残り ${Math.max(0, 3 - n)} / 3 書体・1 ファイル 25 MB まで`;
+  document.getElementById("font-add-file-btn").disabled = n >= 3;
+}
+function openFontAdd() {
+  const err = document.getElementById("font-add-error");
+  err.textContent = ""; err.classList.add("hidden");
+  document.getElementById("font-add-name-input").value = "";
+  updateFontAddPreview();
+  updateFontAddFileLimit();
+  document.getElementById("font-add-overlay").classList.remove("hidden");
+  setTimeout(() => document.getElementById("font-add-name-input").focus(), 30);
+}
+function closeFontAdd() { document.getElementById("font-add-overlay").classList.add("hidden"); }
+function addNamedFont() {
+  const family = sanitizeFontName(document.getElementById("font-add-name-input").value);
+  if (!family) {
+    const err = document.getElementById("font-add-error");
+    err.textContent = "フォント名を入力してください"; err.classList.remove("hidden");
+    return;
+  }
+  const key = "cf-" + newId().slice(0, 8);
+  settings.customFonts = settings.customFonts || [];
+  settings.customFonts.push({ key, label: family, source: "named", family });
+  settings.fontKey = key;
+  applySettings(); saveSettings(); resizeAll(); updateFontBoldNote();
+  renderCustomFontOptions();
+  closeFontAdd();
+  toast("フォントを追加しました");
+}
 applySettings();
+loadCustomFonts();  // await しない — 描画をブロックしない
 
 const $settingsPanel   = document.getElementById("settings-panel");
 const $settingsOverlay = document.getElementById("settings-overlay");
@@ -3088,6 +3308,7 @@ function openSettings() {
   $lineHVal.textContent    = settings.lineHeight.toFixed(1);
   const radio = document.querySelector(`input[name="font-family"][value="${settings.fontKey}"]`);
   if (radio) radio.checked = true;
+  renderCustomFontOptions();
   document.getElementById("setting-font-bold").checked = !!settings.fontBold;
   updateFontBoldNote();
   renderOutlineOptions();
@@ -3295,6 +3516,64 @@ document.querySelectorAll("input[name='font-family']").forEach(radio => {
 document.getElementById("setting-font-bold").addEventListener("change", (ev) => {
   settings.fontBold = ev.target.checked;
   applySettings(); saveSettings(); resizeAll(); updateFontBoldNote();
+});
+// カスタムフォント追加ダイアログ
+document.getElementById("btn-add-font").addEventListener("click", openFontAdd);
+document.getElementById("font-add-cancel").addEventListener("click", closeFontAdd);
+document.getElementById("font-add-ok").addEventListener("click", addNamedFont);
+document.getElementById("font-add-overlay").addEventListener("click", (e) => {
+  if (e.target === document.getElementById("font-add-overlay")) closeFontAdd();
+});
+document.getElementById("font-add-name-input").addEventListener("input", updateFontAddPreview);
+document.getElementById("font-add-name-input").addEventListener("focus", tryPopulateLocalFonts);
+document.getElementById("font-add-name-input").addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter") addNamedFont();
+});
+document.getElementById("font-add-file-btn").addEventListener("click", () => {
+  _reimportTarget = null;  // 新規取込モード
+  document.getElementById("font-file-input").click();
+});
+document.getElementById("font-file-input").addEventListener("change", async (ev) => {
+  const file = ev.target.files[0];
+  ev.target.value = "";
+  const target = _reimportTarget; _reimportTarget = null;
+  if (!file) return;
+  if (file.size > 25 * 1024 * 1024) { toast("フォントファイルが大きすぎます（上限 25 MB）"); return; }
+  try {
+    const buf = await file.arrayBuffer();
+    if (target) {
+      // 再取込: 同一 key・同一 family で登録し直す
+      const cf = (settings.customFonts || []).find(x => x.key === target);
+      if (!cf) return;
+      const face = new FontFace(cf.family, buf);
+      await face.load();
+      document.fonts.add(face);
+      await fontDBPut(target, buf);
+      _cfMissing.delete(target);
+      applySettings(); resizeAll(); renderCustomFontOptions();
+      toast("フォントを再取込しました");
+    } else {
+      // 新規取込
+      const fileCount = (settings.customFonts || []).filter(x => x.source === "file").length;
+      if (fileCount >= 3) { toast("取込フォントは 3 書体までです"); return; }
+      const key = "cf-" + newId().slice(0, 8);
+      const family = "edjiki-" + key;
+      const face = new FontFace(family, buf);
+      await face.load();  // 不正・破損フォントはここで例外
+      document.fonts.add(face);
+      await fontDBPut(key, buf);
+      const label = file.name.replace(/\.[^.]+$/, "");
+      settings.customFonts = settings.customFonts || [];
+      settings.customFonts.push({ key, label, source: "file", family });
+      settings.fontKey = key;
+      applySettings(); saveSettings(); resizeAll(); updateFontBoldNote();
+      renderCustomFontOptions();
+      closeFontAdd();
+      toast("フォントを追加しました");
+    }
+  } catch {
+    toast("フォントを読み込めませんでした");
+  }
 });
 
 // ========== Drive Settings ==========
